@@ -1,0 +1,68 @@
+services:
+  # Kafka and Zookeeper
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    hostname: zookeeper
+    container_name: zookeeper
+    network_mode: host
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    hostname: kafka
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    network_mode: host
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'localhost:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+
+  # LocalStack for AWS SQS
+  localstack:
+    image: localstack/localstack:latest
+    container_name: localstack
+    network_mode: host
+    environment:
+      SERVICES: sqs
+      DEBUG: 0
+    volumes:
+      - "./localstack-data:/var/lib/localstack"
+
+  # MQTT Broker (Mosquitto)
+  # Using port 1884 (configured in mosquitto.conf) to avoid conflict with Artemis
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: mosquitto
+    network_mode: host
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+
+  # ActiveMQ Artemis for JMS
+  artemis:
+    image: apache/activemq-artemis:latest
+    container_name: artemis
+    network_mode: host
+    environment:
+      ARTEMIS_USER: admin
+      ARTEMIS_PASSWORD: admin
+
+  # RabbitMQ for AMQP
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    network_mode: host
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+      # Change AMQP port to avoid conflict with Artemis
+      RABBITMQ_NODE_PORT: 5673

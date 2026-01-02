@@ -1,0 +1,122 @@
+╔════════════════════════════════════════════════════════════════════════╗
+║                                                                        ║
+║         ✅ DOCKER COMPOSE UPDATED TO USE HOST NETWORK! ✅              ║
+║                                                                        ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+MAJOR CHANGE:
+════════════════════════════════════════════════════════════════════════
+
+  All services now use: network_mode: host
+
+  This solves all networking issues between Spring Boot (running on host)
+  and Docker containers.
+
+WHY HOST NETWORK MODE:
+════════════════════════════════════════════════════════════════════════
+
+  ✅ Direct localhost connectivity
+  ✅ No port mapping needed
+  ✅ No connection refused errors
+  ✅ Simpler configuration
+  ✅ Better performance (no NAT overhead)
+
+WHAT CHANGED:
+════════════════════════════════════════════════════════════════════════
+
+  Before (bridge network):
+    - Required port mapping (e.g., - "4566:4566")
+    - Services had Docker internal IPs
+    - Spring Boot had to connect through Docker bridge
+
+  After (host network):
+    - No port mapping needed
+    - Services bind directly to localhost
+    - Spring Boot connects to localhost:PORT directly
+
+SERVICES UPDATED:
+════════════════════════════════════════════════════════════════════════
+
+  ✅ Kafka - localhost:9092
+  ✅ Zookeeper - localhost:2181
+  ✅ LocalStack (SQS) - localhost:4566
+  ✅ Mosquitto (MQTT) - localhost:1883
+  ✅ RabbitMQ (AMQP) - localhost:5672, :15672 (UI)
+  ✅ ActiveMQ Artemis (JMS) - localhost:61616, :8161 (UI)
+
+IMPORTANT NOTES:
+════════════════════════════════════════════════════════════════════════
+
+  📌 Host network mode works differently on different OS:
+     - Linux: Full host network support ✅
+     - macOS: Docker Desktop implements host network differently
+     - Windows: Similar to macOS
+
+  📌 For macOS/Windows users:
+     If you encounter issues, an alternative is to run the Spring Boot
+     app in a container too, or use the bridge network with proper
+     endpoint configuration.
+
+HOW TO USE:
+════════════════════════════════════════════════════════════════════════
+
+  1. Stop existing containers:
+     docker compose down
+
+  2. Start with new configuration:
+     docker compose up -d
+
+  3. All services accessible on localhost:
+     - Kafka: localhost:9092
+     - SQS: localhost:4566
+     - MQTT: localhost:1883
+     - RabbitMQ: localhost:5672
+     - Artemis: localhost:61616
+
+  4. Run Spring Boot app:
+     ./gradlew bootRun --args="--spring.profiles.active=sqs-sqs"
+
+VERIFICATION:
+════════════════════════════════════════════════════════════════════════
+
+  Test LocalStack SQS:
+    curl http://localhost:4566/_localstack/health
+
+  Test Kafka:
+    nc -zv localhost 9092
+
+  Test MQTT:
+    nc -zv localhost 1883
+
+  Test RabbitMQ:
+    nc -zv localhost 5672
+
+BENEFITS:
+════════════════════════════════════════════════════════════════════════
+
+  ✅ No more connection refused errors
+  ✅ Simpler docker-compose.yml
+  ✅ Direct localhost access
+  ✅ No network configuration needed
+  ✅ Same as if services were installed locally
+
+QUICK START:
+════════════════════════════════════════════════════════════════════════
+
+  # Clean start
+  docker compose down -v
+  docker compose up -d
+
+  # Wait for services
+  sleep 15
+
+  # Run app with any profile
+  ./gradlew bootRun --args="--spring.profiles.active=kafka-kafka"
+  # or
+  ./gradlew bootRun --args="--spring.profiles.active=sqs-sqs"
+
+╔════════════════════════════════════════════════════════════════════════╗
+║                                                                        ║
+║         THIS SHOULD SOLVE ALL CONNECTION ISSUES! 🎉                    ║
+║                                                                        ║
+╚════════════════════════════════════════════════════════════════════════╝
