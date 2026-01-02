@@ -2,14 +2,14 @@ package com.example.orderapi.service;
 
 import com.example.orderapi.model.*;
 import com.example.orderapi.messaging.protocol.MessagePublisher;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
-import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -17,6 +17,8 @@ public class OrderService {
 
     @Autowired(required = false)
     private MessagePublisher messagePublisher;
+
+    private final ConcurrentHashMap<Integer, Order> orderDatabase = new ConcurrentHashMap<>();
 
     @Value("${channel.wip-orders}")
     private String wipOrdersChannel;
@@ -39,11 +41,10 @@ public class OrderService {
             
             Order order = new Order(orderRequest.getId(), totalAmount, OrderStatus.INITIATED);
             
-            MessageWrapper<Order> wrapper = new MessageWrapper<>(correlationId, order);
-            String message = objectMapper.writeValueAsString(wrapper);
+            String payload = objectMapper.writeValueAsString(order);
             
             if (messagePublisher != null) {
-                messagePublisher.publish(wipOrdersChannel, message, correlationId);
+                messagePublisher.publish(wipOrdersChannel, payload, correlationId);
                 log.info("Order {} initiated with total amount: {}", order.getId(), totalAmount);
             }
         } catch (Exception e) {
@@ -60,12 +61,10 @@ public class OrderService {
                     cancelRequest.getId(), 
                     OrderStatus.CANCELLED
             );
-            
-            MessageWrapper<CancellationReference> wrapper = new MessageWrapper<>(correlationId, cancellationRef);
-            String message = objectMapper.writeValueAsString(wrapper);
+            String payload = objectMapper.writeValueAsString(cancellationRef);
             
             if (messagePublisher != null) {
-                messagePublisher.publish(cancelledOrdersChannel, message, correlationId);
+                messagePublisher.publish(cancelledOrdersChannel, payload, correlationId);
                 log.info("Order {} cancelled", cancelRequest.getId());
             }
         } catch (Exception e) {
@@ -78,22 +77,31 @@ public class OrderService {
         log.info("Processing order delivery initiation for order: {}", deliveryInfo.getOrderId());
         
         try {
-            OrderAccepted orderAccepted = new OrderAccepted(
-                    deliveryInfo.getOrderId(),
-                    OrderStatus.SHIPPED,
-                    Instant.now().toString()
-            );
-            
-            String correlationId = UUID.randomUUID().toString();
-            String message = objectMapper.writeValueAsString(orderAccepted);
-            
-            if (messagePublisher != null) {
-                messagePublisher.publish(acceptedOrdersChannel, message, correlationId);
-                log.info("Order {} marked as shipped", deliveryInfo.getOrderId());
-            }
+            Order order = new Order(deliveryInfo.getOrderId(), null, OrderStatus.SHIPPED);
+            saveOrder(deliveryInfo.getOrderId(), order);
+
+            log.info("Order {} marked as shipped and saved to database", deliveryInfo.getOrderId());
         } catch (Exception e) {
             log.error("Error processing order delivery", e);
             throw new RuntimeException("Failed to process order delivery", e);
         }
+    }
+
+    public void acceptOrder(OrderAccepted orderAccepted) throws JsonProcessingException {
+        messagePublisher.publish(
+                acceptedOrdersChannel,
+                objectMapper.writeValueAsString(orderAccepted),
+                "12345"
+        );
+        log.info("Order {} has been accepted", orderAccepted.getId());
+    }
+
+    public void saveOrder(Integer orderId, Order order) {
+        log.info("Saving order {} to in-memory database", orderId);
+        orderDatabase.put(orderId, order);
+    }
+
+    public Order getOrder(Integer id) {
+        return orderDatabase.get(id);
     }
 }

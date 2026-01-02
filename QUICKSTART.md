@@ -59,8 +59,10 @@ docker exec -it kafka kafka-console-consumer \
 
 - `kafka-kafka` - Kafka receive → Kafka send
 - `kafka-sqs` - Kafka receive → SQS send
+- `sqs-kafka` - SQS receive → Kafka send
 - `sqs-sqs` - SQS receive → SQS send
 - `mqtt-mqtt` - MQTT receive → MQTT send
+- `mqtt-kafka` - MQTT receive → Kafka send
 - `amqp-amqp` - RabbitMQ receive → RabbitMQ send
 - `jms-jms` - ActiveMQ receive → ActiveMQ send
 

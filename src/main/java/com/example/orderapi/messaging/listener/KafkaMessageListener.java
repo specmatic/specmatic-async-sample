@@ -25,11 +25,8 @@ public class KafkaMessageListener {
     public void handleNewOrder(@Payload String message, @Header(value = "orderCorrelationId", required = false) String correlationId) {
         log.info("Received new order from Kafka - CorrelationId: {}", correlationId);
         try {
-            MessageWrapper<OrderRequest> wrapper = objectMapper.readValue(message, 
-                objectMapper.getTypeFactory().constructParametricType(MessageWrapper.class, OrderRequest.class));
-            
-            String corrId = correlationId != null ? correlationId : wrapper.getOrderCorrelationId();
-            orderService.processNewOrder(wrapper.getPayload(), corrId);
+            OrderRequest orderRequest = objectMapper.readValue(message, OrderRequest.class);
+            orderService.processNewOrder(orderRequest, correlationId);
         } catch (Exception e) {
             log.error("Error processing new order from Kafka", e);
         }
@@ -39,11 +36,8 @@ public class KafkaMessageListener {
     public void handleCancelOrder(@Payload String message, @Header(value = "orderCorrelationId", required = false) String correlationId) {
         log.info("Received cancel order from Kafka - CorrelationId: {}", correlationId);
         try {
-            MessageWrapper<CancelOrderRequest> wrapper = objectMapper.readValue(message,
-                objectMapper.getTypeFactory().constructParametricType(MessageWrapper.class, CancelOrderRequest.class));
-            
-            String corrId = correlationId != null ? correlationId : wrapper.getOrderCorrelationId();
-            orderService.processCancelOrder(wrapper.getPayload(), corrId);
+            CancelOrderRequest cancelOrderRequest = objectMapper.readValue(message, CancelOrderRequest.class);
+            orderService.processCancelOrder(cancelOrderRequest, correlationId);
         } catch (Exception e) {
             log.error("Error processing cancel order from Kafka", e);
         }

@@ -3,7 +3,6 @@ services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     hostname: zookeeper
-    container_name: zookeeper
     network_mode: host
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
@@ -12,7 +11,6 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     hostname: kafka
-    container_name: kafka
     depends_on:
       - zookeeper
     network_mode: host
@@ -28,7 +26,6 @@ services:
   # LocalStack for AWS SQS
   localstack:
     image: localstack/localstack:latest
-    container_name: localstack
     network_mode: host
     environment:
       SERVICES: sqs
@@ -36,11 +33,32 @@ services:
     volumes:
       - "./localstack-data:/var/lib/localstack"
 
+  localstack-init:
+    image: localstack/localstack:latest
+    network_mode: host
+    depends_on:
+      - localstack
+    entrypoint: /bin/bash
+    command: >
+      -c "
+      echo 'Waiting for LocalStack...';
+      until awslocal sqs list-queues >/dev/null 2>&1; do sleep 2; done;
+      
+      echo 'Creating SQS queues...';
+      awslocal sqs create-queue --queue-name new-orders;
+      awslocal sqs create-queue --queue-name wip-orders;
+      awslocal sqs create-queue --queue-name to-be-cancelled-orders;
+      awslocal sqs create-queue --queue-name cancelled-orders;
+      awslocal sqs create-queue --queue-name accepted-orders;
+      awslocal sqs create-queue --queue-name out-for-delivery-orders;
+      
+      echo 'SQS queues created';
+      "
+
   # MQTT Broker (Mosquitto)
   # Using port 1884 (configured in mosquitto.conf) to avoid conflict with Artemis
   mosquitto:
     image: eclipse-mosquitto:2.0
-    container_name: mosquitto
     network_mode: host
     volumes:
       - ./mosquitto/config:/mosquitto/config
@@ -50,7 +68,6 @@ services:
   # ActiveMQ Artemis for JMS
   artemis:
     image: apache/activemq-artemis:latest
-    container_name: artemis
     network_mode: host
     environment:
       ARTEMIS_USER: admin
@@ -59,7 +76,6 @@ services:
   # RabbitMQ for AMQP
   rabbitmq:
     image: rabbitmq:3-management
-    container_name: rabbitmq
     network_mode: host
     environment:
       RABBITMQ_DEFAULT_USER: guest

@@ -12,9 +12,13 @@ servers:
     protocol: kafka
     description: Kafka broker
   mqttServer:
-    host: 'tcp://localhost:1883'
+    host: 'tcp://localhost:1884'
     protocol: mqtt
     description: MQTT server
+  jmsServer:
+    host: 'tcp://localhost:61616'
+    protocol: jms
+    description: JMS server
 channels:
   NewOrderPlaced:
     address: new-orders
@@ -93,8 +97,9 @@ components:
           orderCorrelationId:
             type: string
             description: Unique identifier for the request
-      correlationId:
-        $ref: "#/components/correlationIds/orderCorrelationId"
+        additionalProperties: true
+#      correlationId:
+#        $ref: "#/components/correlationIds/orderCorrelationId"
       payload:
         type: object
         required:
@@ -146,8 +151,9 @@ components:
           orderCorrelationId:
             type: string
             description: Unique identifier for the request
-      correlationId:
-        $ref: "#/components/correlationIds/orderCorrelationId"
+        additionalProperties: true
+#      correlationId:
+#        $ref: "#/components/correlationIds/orderCorrelationId"
       payload:
         type: object
         required:
@@ -179,8 +185,9 @@ components:
           orderCorrelationId:
             type: string
             description: Unique identifier for the request
-      correlationId:
-        $ref: "#/components/correlationIds/orderCorrelationId"
+        additionalProperties: true
+#      correlationId:
+#        $ref: "#/components/correlationIds/orderCorrelationId"
       payload:
         type: object
         required:
@@ -204,8 +211,9 @@ components:
           orderCorrelationId:
             type: string
             description: Unique identifier for the request
-      correlationId:
-        $ref: "#/components/correlationIds/orderCorrelationId"
+        additionalProperties: true
+#      correlationId:
+#        $ref: "#/components/correlationIds/orderCorrelationId"
       payload:
         type: object
         required:
@@ -227,6 +235,9 @@ components:
       name: OrderAccepted
       title: Order accepted by Warehouse
       contentType: application/json
+      headers:
+        type: object
+        additionalProperties: true
       payload:
         type: object
         properties:
@@ -283,6 +294,6 @@ components:
           - DELIVERED
           - CANCELLED
 
-  correlationIds:
-    orderCorrelationId:
-      location: '$message.header#/orderCorrelationId'
+#  correlationIds:
+#    orderCorrelationId:
+#      location: '$message.header#/orderCorrelationId'

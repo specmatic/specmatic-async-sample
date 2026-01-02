@@ -80,13 +80,11 @@ public class MqttMessageListener {
         log.info("Received message from MQTT - Topic: {}", topic);
         try {
             if (topic.equals(newOrdersChannel)) {
-                MessageWrapper<OrderRequest> wrapper = objectMapper.readValue(payload,
-                    objectMapper.getTypeFactory().constructParametricType(MessageWrapper.class, OrderRequest.class));
-                orderService.processNewOrder(wrapper.getPayload(), wrapper.getOrderCorrelationId());
+                OrderRequest orderRequest = objectMapper.readValue(payload, OrderRequest.class);
+                orderService.processNewOrder(orderRequest, "");
             } else if (topic.equals(cancelOrdersChannel)) {
-                MessageWrapper<CancelOrderRequest> wrapper = objectMapper.readValue(payload,
-                    objectMapper.getTypeFactory().constructParametricType(MessageWrapper.class, CancelOrderRequest.class));
-                orderService.processCancelOrder(wrapper.getPayload(), wrapper.getOrderCorrelationId());
+                CancelOrderRequest cancelOrderRequest = objectMapper.readValue(payload, CancelOrderRequest.class);
+                orderService.processCancelOrder(cancelOrderRequest, "");
             } else if (topic.equals(deliveryOrdersChannel)) {
                 OutForDelivery deliveryInfo = objectMapper.readValue(payload, OutForDelivery.class);
                 orderService.processOrderDelivery(deliveryInfo);

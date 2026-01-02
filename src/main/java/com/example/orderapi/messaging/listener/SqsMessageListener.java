@@ -25,15 +25,10 @@ public class SqsMessageListener {
         log.info("Received new order from SQS");
         try {
             String payload = message.getPayload();
-            MessageWrapper<OrderRequest> wrapper = objectMapper.readValue(payload,
-                objectMapper.getTypeFactory().constructParametricType(MessageWrapper.class, OrderRequest.class));
-            
+            OrderRequest orderRequest = objectMapper.readValue(payload, OrderRequest.class);
             String correlationId = (String) message.getHeaders().get("orderCorrelationId");
-            if (correlationId == null) {
-                correlationId = wrapper.getOrderCorrelationId();
-            }
-            
-            orderService.processNewOrder(wrapper.getPayload(), correlationId);
+
+            orderService.processNewOrder(orderRequest, correlationId);
         } catch (Exception e) {
             log.error("Error processing new order from SQS", e);
         }
@@ -44,15 +39,10 @@ public class SqsMessageListener {
         log.info("Received cancel order from SQS");
         try {
             String payload = message.getPayload();
-            MessageWrapper<CancelOrderRequest> wrapper = objectMapper.readValue(payload,
-                objectMapper.getTypeFactory().constructParametricType(MessageWrapper.class, CancelOrderRequest.class));
-            
+            CancelOrderRequest cancelOrderRequest = objectMapper.readValue(payload, CancelOrderRequest.class);
             String correlationId = (String) message.getHeaders().get("orderCorrelationId");
-            if (correlationId == null) {
-                correlationId = wrapper.getOrderCorrelationId();
-            }
-            
-            orderService.processCancelOrder(wrapper.getPayload(), correlationId);
+
+            orderService.processCancelOrder(cancelOrderRequest, correlationId);
         } catch (Exception e) {
             log.error("Error processing cancel order from SQS", e);
         }
