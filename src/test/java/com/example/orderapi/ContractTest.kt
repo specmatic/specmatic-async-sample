@@ -16,6 +16,7 @@ import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.ComposeContainer
 import org.testcontainers.containers.GenericContainer
 import org.testcontainers.containers.wait.strategy.Wait
+import org.testcontainers.images.PullPolicy
 import org.testcontainers.utility.DockerImageName
 import java.io.File
 import java.time.Duration
@@ -72,6 +73,7 @@ class ContractTest {
 
         val specmaticContainer = GenericContainer(DockerImageName.parse("specmatic/specmatic-async"))
             .withCommand("test --overlay=overlay.yaml")
+            .withImagePullPolicy(PullPolicy.alwaysPull())
             .withFileSystemBind(
                 "./specmatic.yaml",
                 "/usr/src/app/specmatic.yaml",
