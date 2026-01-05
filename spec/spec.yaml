@@ -1,303 +1,304 @@
-asyncapi: 3.0.0
+---
+asyncapi: "3.0.0"
 info:
-  title: Order API
-  version: 1.0.0
+  title: "Order API"
+  version: "1.0.0"
 servers:
   sqsServer:
-    host: 'http://localhost:4566/000000000000'
-    protocol: sqs
-    description: AWS SQS server
+    host: "http://localhost:4566/000000000000"
+    protocol: "sqs"
+    description: "AWS SQS server"
   kafkaServer:
-    host: 'localhost:9092'
-    protocol: kafka
-    description: Kafka broker
+    host: "localhost:9092"
+    protocol: "kafka"
+    description: "Kafka broker"
   mqttServer:
-    host: 'tcp://localhost:1884'
-    protocol: mqtt
-    description: MQTT server
+    host: "tcp://localhost:1884"
+    protocol: "mqtt"
+    description: "MQTT server"
   jmsServer:
-    host: 'tcp://localhost:61616'
-    protocol: jms
-    description: JMS server
+    host: "tcp://localhost:61616"
+    protocol: "jms"
+    description: "JMS server"
   amqpServer:
-    host: 'localhost:5673'
-    protocol: amqp
-    description: RabbitMQ AMQP server
+    host: "localhost:5673"
+    protocol: "amqp"
+    description: "RabbitMQ AMQP server"
 channels:
   NewOrderPlaced:
-    address: new-orders
+    address: "new-orders"
+    servers:
+    - $ref: "#/servers/jmsServer"
     messages:
       placeOrder.message:
-        $ref: '#/components/messages/OrderRequest'
+        $ref: "#/components/messages/OrderRequest"
   OrderInitiated:
-    address: wip-orders
+    address: "wip-orders"
+    servers:
+    - $ref: "#/servers/mqttServer"
     messages:
       processOrder.message:
-        $ref: '#/components/messages/Order'
+        $ref: "#/components/messages/Order"
   OrderCancellationRequested:
-    address: to-be-cancelled-orders
+    address: "to-be-cancelled-orders"
+    servers:
+    - $ref: "#/servers/jmsServer"
     messages:
       cancelOrder.message:
-        $ref: '#/components/messages/CancelOrderRequest'
+        $ref: "#/components/messages/CancelOrderRequest"
   OrderCancelled:
-    address: cancelled-orders
+    address: "cancelled-orders"
+    servers:
+    - $ref: "#/servers/mqttServer"
     messages:
       processCancellation.message:
-        $ref: '#/components/messages/CancellationReference'
+        $ref: "#/components/messages/CancellationReference"
   OrderAccepted:
-    address: accepted-orders
+    address: "accepted-orders"
+    servers:
+    - $ref: "#/servers/mqttServer"
     messages:
       orderAccepted.message:
-        $ref: '#/components/messages/OrderAccepted'
+        $ref: "#/components/messages/OrderAccepted"
   OrderDeliveryInitiated:
-    address: out-for-delivery-orders
+    address: "out-for-delivery-orders"
+    servers:
+    - $ref: "#/servers/jmsServer"
     messages:
       orderDeliveryInitiation.message:
-        $ref: '#/components/messages/OutForDelivery'
+        $ref: "#/components/messages/OutForDelivery"
 operations:
   placeOrder:
-    action: receive
+    action: "receive"
     channel:
-      $ref: '#/channels/NewOrderPlaced'
+      $ref: "#/channels/NewOrderPlaced"
     messages:
-      - $ref: '#/channels/NewOrderPlaced/messages/placeOrder.message'
+    - $ref: "#/channels/NewOrderPlaced/messages/placeOrder.message"
     reply:
       channel:
-        $ref: '#/channels/OrderInitiated'
+        $ref: "#/channels/OrderInitiated"
       messages:
-        - $ref: '#/channels/OrderInitiated/messages/processOrder.message'
+      - $ref: "#/channels/OrderInitiated/messages/processOrder.message"
   cancelOrder:
-    action: receive
+    action: "receive"
     channel:
-      $ref: '#/channels/OrderCancellationRequested'
+      $ref: "#/channels/OrderCancellationRequested"
     messages:
-      - $ref: '#/channels/OrderCancellationRequested/messages/cancelOrder.message'
+    - $ref: "#/channels/OrderCancellationRequested/messages/cancelOrder.message"
     reply:
       channel:
-        $ref: '#/channels/OrderCancelled'
+        $ref: "#/channels/OrderCancelled"
       messages:
-        - $ref: '#/channels/OrderCancelled/messages/processCancellation.message'
+      - $ref: "#/channels/OrderCancelled/messages/processCancellation.message"
   orderAccepted:
-    action: send
+    action: "send"
     channel:
-      $ref: '#/channels/OrderAccepted'
+      $ref: "#/channels/OrderAccepted"
     messages:
-      - $ref: '#/channels/OrderAccepted/messages/orderAccepted.message'
+    - $ref: "#/channels/OrderAccepted/messages/orderAccepted.message"
   initiateOrderDelivery:
-    action: receive
+    action: "receive"
     channel:
-      $ref: '#/channels/OrderDeliveryInitiated'
+      $ref: "#/channels/OrderDeliveryInitiated"
     messages:
-      - $ref: '#/channels/OrderDeliveryInitiated/messages/orderDeliveryInitiation.message'
+    - $ref: "#/channels/OrderDeliveryInitiated/messages/orderDeliveryInitiation.message"
 components:
   messages:
     OrderRequest:
-      name: OrderRequest
-      title: An order request
-      contentType: application/json
+      name: "OrderRequest"
+      title: "An order request"
+      contentType: "application/json"
       headers:
-        type: object
+        type: "object"
         properties:
           orderCorrelationId:
-            type: string
-            description: Unique identifier for the request
+            type: "string"
+            description: "Unique identifier for the request"
         additionalProperties: true
-#      correlationId:
-#        $ref: "#/components/correlationIds/orderCorrelationId"
       payload:
-        type: object
+        type: "object"
         required:
-          - id
-          - orderItems
+        - "id"
+        - "orderItems"
         properties:
           id:
-            type: integer
+            type: "integer"
           orderItems:
-            type: array
+            type: "array"
             items:
-              type: object
+              type: "object"
               properties:
                 id:
-                  type: integer
+                  type: "integer"
                 name:
-                  type: string
+                  type: "string"
                 quantity:
-                  type: integer
+                  type: "integer"
                 price:
-                  type: number
+                  type: "number"
               required:
-                - id
-                - name
-                - quantity
-                - price
+              - "id"
+              - "name"
+              - "quantity"
+              - "price"
       examples:
-        - name: NEW_ORDER
-          headers:
-            orderCorrelationId: 12345
-          payload:
-            id: 10
-            orderItems:
-              - id: 1
-                name: Macbook
-                quantity: 1
-                price: 2000
-              - id: 2
-                name: Iphone
-                quantity: 1
-                price: 1000
+      - name: "NEW_ORDER"
+        headers:
+          orderCorrelationId: 12345
+        payload:
+          id: 10
+          orderItems:
+          - id: 1
+            name: "Macbook"
+            quantity: 1
+            price: 2000
+          - id: 2
+            name: "Iphone"
+            quantity: 1
+            price: 1000
     Order:
-      name: OrderToProcess
-      title: An order that needs to be processed
-      contentType: application/json
+      name: "OrderToProcess"
+      title: "An order that needs to be processed"
+      contentType: "application/json"
       headers:
-        type: object
+        type: "object"
         properties:
           orderCorrelationId:
-            type: string
-            description: Unique identifier for the request
+            type: "string"
+            description: "Unique identifier for the request"
         additionalProperties: true
-#      correlationId:
-#        $ref: "#/components/correlationIds/orderCorrelationId"
       payload:
-        type: object
+        type: "object"
         required:
-          - id
-          - totalAmount
-          - status
+        - "id"
+        - "totalAmount"
+        - "status"
         properties:
           id:
-            type: integer
+            type: "integer"
           totalAmount:
-            type: number
+            type: "number"
           status:
-            $ref: '#/components/messages/OrderStatus'
+            $ref: "#/components/messages/OrderStatus"
       examples:
-        - name: NEW_ORDER
-          headers:
-            orderCorrelationId: 12345
-          payload:
-            id: 10
-            totalAmount: 3000
-            status: INITIATED
+      - name: "NEW_ORDER"
+        headers:
+          orderCorrelationId: 12345
+        payload:
+          id: 10
+          totalAmount: 3000
+          status: "INITIATED"
     CancelOrderRequest:
-      name: CancelOrderRequest
-      title: A cancel order request
-      contentType: application/json
+      name: "CancelOrderRequest"
+      title: "A cancel order request"
+      contentType: "application/json"
       headers:
-        type: object
+        type: "object"
         properties:
           orderCorrelationId:
-            type: string
-            description: Unique identifier for the request
+            type: "string"
+            description: "Unique identifier for the request"
         additionalProperties: true
-#      correlationId:
-#        $ref: "#/components/correlationIds/orderCorrelationId"
       payload:
-        type: object
+        type: "object"
         required:
-          - id
+        - "id"
         properties:
           id:
-            type: integer
+            type: "integer"
       examples:
-        - name: CANCEL_ORDER
-          headers:
-            orderCorrelationId: 12345
-          payload:
-            id: 10
+      - name: "CANCEL_ORDER"
+        headers:
+          orderCorrelationId: 12345
+        payload:
+          id: 10
     CancellationReference:
-      name: CancellationReference
-      title: A cancellation reference in response to a cancel order request
-      contentType: application/json
+      name: "CancellationReference"
+      title: "A cancellation reference in response to a cancel order request"
+      contentType: "application/json"
       headers:
-        type: object
+        type: "object"
         properties:
           orderCorrelationId:
-            type: string
-            description: Unique identifier for the request
+            type: "string"
+            description: "Unique identifier for the request"
         additionalProperties: true
-#      correlationId:
-#        $ref: "#/components/correlationIds/orderCorrelationId"
       payload:
-        type: object
+        type: "object"
         required:
-          - reference
-          - status
+        - "reference"
+        - "status"
         properties:
           reference:
-            type: integer
+            type: "integer"
           status:
-            $ref: '#/components/messages/OrderStatus'
+            $ref: "#/components/messages/OrderStatus"
       examples:
-        - name: CANCEL_ORDER
-          headers:
-            orderCorrelationId: 12345
-          payload:
-            reference: 10
-            status: CANCELLED
+      - name: "CANCEL_ORDER"
+        headers:
+          orderCorrelationId: 12345
+        payload:
+          reference: 10
+          status: "CANCELLED"
     OrderAccepted:
-      name: OrderAccepted
-      title: Order accepted by Warehouse
-      contentType: application/json
+      name: "OrderAccepted"
+      title: "Order accepted by Warehouse"
+      contentType: "application/json"
       headers:
-        type: object
+        type: "object"
         additionalProperties: true
       payload:
-        type: object
+        type: "object"
         properties:
           id:
-            type: integer
+            type: "integer"
           status:
-            $ref: '#/components/messages/OrderStatus'
+            $ref: "#/components/messages/OrderStatus"
           timestamp:
-            type: string
+            type: "string"
         required:
-          - id
-          - status
-          - timestamp
+        - "id"
+        - "status"
+        - "timestamp"
       examples:
-        - name: ACCEPT_ORDER
-          payload:
-            id: 123
-            status: ACCEPTED
-            timestamp: "2025-04-12T14:30:00Z"
+      - name: "ACCEPT_ORDER"
+        payload:
+          id: 123
+          status: "ACCEPTED"
+          timestamp: "2025-04-12T14:30:00Z"
     OutForDelivery:
-      name: OutForDelivery
-      title: Order is out for delivery
-      contentType: application/json
+      name: "OutForDelivery"
+      title: "Order is out for delivery"
+      contentType: "application/json"
       payload:
-        type: object
+        type: "object"
         required:
-          - orderId
-          - deliveryAddress
-          - deliveryDate
+        - "orderId"
+        - "deliveryAddress"
+        - "deliveryDate"
         properties:
           orderId:
-            type: integer
+            type: "integer"
           deliveryAddress:
-            type: string
+            type: "string"
           deliveryDate:
-            type: string
-            format: date
+            type: "string"
+            format: "date"
       examples:
-        - name: ORDER_OUT_FOR_DELIVERY
-          payload:
-            orderId: 123
-            deliveryAddress: "1234 Elm Street, Springfield"
-            deliveryDate: "2025-04-14"
+      - name: "ORDER_OUT_FOR_DELIVERY"
+        payload:
+          orderId: 123
+          deliveryAddress: "1234 Elm Street, Springfield"
+          deliveryDate: "2025-04-14"
     OrderStatus:
-      name: OrderStatus
-      title: Order status
+      name: "OrderStatus"
+      title: "Order status"
       payload:
-        type: string
+        type: "string"
         enum:
-          - PENDING
-          - INITIATED
-          - ACCEPTED
-          - SHIPPED
-          - DELIVERED
-          - CANCELLED
-
-#  correlationIds:
-#    orderCorrelationId:
-#      location: '$message.header#/orderCorrelationId'
+        - "PENDING"
+        - "INITIATED"
+        - "ACCEPTED"
+        - "SHIPPED"
+        - "DELIVERED"
+        - "CANCELLED"

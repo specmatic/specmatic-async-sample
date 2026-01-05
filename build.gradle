@@ -43,6 +43,11 @@ dependencies {
 
     // Jackson for JSON
     implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml'
+    implementation 'com.fasterxml.jackson.module:jackson-module-kotlin'
+
+    // JsonPath for YAML manipulation
+    implementation 'com.jayway.jsonpath:json-path:2.9.0'
 
     // Lombok
     compileOnly 'org.projectlombok:lombok'

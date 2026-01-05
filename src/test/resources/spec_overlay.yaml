@@ -1,0 +1,22 @@
+overlay: 1.0.0
+actions:
+  - target: $.operations.orderAccepted
+    update:
+      x-specmatic-trigger:
+        type: http
+        method: PUT
+        url: http://localhost:9000/orders
+        expectedStatus: 200
+        timeoutInSeconds: 5
+        headers:
+          Content-Type: application/json
+        requestBody: '{"id":123,"status":"ACCEPTED","timestamp":"2025-04-12T14:30:00Z"}'
+
+  - target: $.operations.initiateOrderDelivery
+    update:
+      x-specmatic-side-effect:
+        type: http
+        method: GET
+        url: http://localhost:9000/orders/123?status=SHIPPED
+        expectedStatus: 200
+        timeoutInSeconds: 5

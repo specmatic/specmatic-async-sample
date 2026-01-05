@@ -1,7 +1,13 @@
 package com.example.orderapi
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
+import com.fasterxml.jackson.module.kotlin.registerKotlinModule
+import com.jayway.jsonpath.Configuration
+import com.jayway.jsonpath.JsonPath
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.springframework.beans.factory.annotation.Value
@@ -17,13 +23,15 @@ import java.time.Duration
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT,
+    // Note - Update these to try out different protocol combinations
     properties = [
         "receive.protocol=jms",
         "send.protocol=mqtt"
     ]
 )
 class ContractTest {
-    private val generatedOverlayPath = "./build/generated-overlay.yaml"
+    private val specPath = "./spec/spec.yaml"
+    private val overlayFilePath = "./src/test/resources/spec_overlay.yaml"
 
     companion object {
         private lateinit var infrastructure: ComposeContainer
@@ -41,26 +49,29 @@ class ContractTest {
         }
     }
 
+    @Value($$"${receive.protocol}")
+    private lateinit var receiveProtocol: String
+
+    @Value($$"${send.protocol}")
+    private lateinit var sendProtocol: String
+
+    @BeforeAll
+    fun setup() {
+        println("Test setup: receive=$receiveProtocol, send=$sendProtocol")
+        updateProtocolsInSpec(receiveProtocol, sendProtocol)
+    }
+
     @AfterAll
     fun afterAll() {
         infrastructure.stop()
     }
 
-    @Value("\${receive.protocol}")
-    private lateinit var receiveProtocol: String
-
-    @Value("\${send.protocol}")
-    private lateinit var sendProtocol: String
-
     @Test
     fun runContractTest() {
         println("Running contract test for: receive=$receiveProtocol, send=$sendProtocol")
 
-        // Generate overlay file based on protocols
-        generateOverlayFile(receiveProtocol, sendProtocol)
-
         val specmaticContainer = GenericContainer(DockerImageName.parse("specmatic/specmatic-async"))
-            .withCommand("test", "--overlay=overlay.yaml")
+            .withCommand("test --overlay=overlay.yaml")
             .withFileSystemBind(
                 "./specmatic.yaml",
                 "/usr/src/app/specmatic.yaml",
@@ -72,7 +83,7 @@ class ContractTest {
                 BindMode.READ_ONLY
             )
             .withFileSystemBind(
-                generatedOverlayPath,
+                overlayFilePath,
                 "/usr/src/app/overlay.yaml",
                 BindMode.READ_ONLY
             )
@@ -89,7 +100,6 @@ class ContractTest {
 
         try {
             specmaticContainer.start()
-            // Wait for tests to complete
             Thread.sleep(2000)
 
             val logs = specmaticContainer.logs
@@ -102,71 +112,32 @@ class ContractTest {
         }
     }
 
-    private fun generateOverlayFile(receiveProtocol: String, sendProtocol: String) {
-        val receiveServer = "${receiveProtocol}Server"
-        val sendServer = "${sendProtocol}Server"
+    private fun updateProtocolsInSpec(receiveProtocol: String, sendProtocol: String) {
+        println("Modifying spec.yaml:")
+        println("  - Receive channels will use: ${receiveProtocol}Server")
+        println("  - Send channels will use: ${sendProtocol}Server")
 
-        val overlayContent = """
-overlay: 1.0.0
-actions:
-  # Channels for receiving messages (NewOrderPlaced, OrderCancellationRequested, OrderDeliveryInitiated)
-  - target: ${'$'}.channels.NewOrderPlaced
-    update:
-      servers:
-        - ${'$'}ref: '#/servers/$receiveServer'
+        val file = File(specPath)
+        val mapper = ObjectMapper(YAMLFactory()).registerKotlinModule()
+        val root = mapper.readTree(file)
 
-  - target: ${'$'}.channels.OrderCancellationRequested
-    update:
-      servers:
-        - ${'$'}ref: '#/servers/$receiveServer'
+        val configuration = Configuration.builder()
+            .jsonProvider(com.jayway.jsonpath.spi.json.JacksonJsonNodeJsonProvider())
+            .mappingProvider(com.jayway.jsonpath.spi.mapper.JacksonMappingProvider())
+            .build()
 
-  - target: ${'$'}.channels.OrderDeliveryInitiated
-    update:
-      servers:
-        - ${'$'}ref: '#/servers/$receiveServer'
+        val context = JsonPath.using(configuration).parse(root)
 
-  # Channels for sending messages (OrderInitiated, OrderCancelled, OrderAccepted)
-  - target: ${'$'}.channels.OrderInitiated
-    update:
-      servers:
-        - ${'$'}ref: '#/servers/$sendServer'
+        val receiveChannels = listOf("NewOrderPlaced", "OrderCancellationRequested", "OrderDeliveryInitiated")
+        val sendChannels = listOf("OrderInitiated", "OrderCancelled", "OrderAccepted")
 
-  - target: ${'$'}.channels.OrderCancelled
-    update:
-      servers:
-        - ${'$'}ref: '#/servers/$sendServer'
+        receiveChannels.forEach { channel ->
+            context.set("$.channels.$channel.servers[0].\$ref", "#/servers/${receiveProtocol}Server")
+        }
+        sendChannels.forEach { channel ->
+            context.set("$.channels.$channel.servers[0].\$ref", "#/servers/${sendProtocol}Server")
+        }
 
-  - target: ${'$'}.channels.OrderAccepted
-    update:
-      servers:
-        - ${'$'}ref: '#/servers/$sendServer'
-
-  # HTTP trigger for orderAccepted operation
-  - target: ${'$'}.operations.orderAccepted
-    update:
-      x-specmatic-trigger:
-        type: http
-        method: PUT
-        url: http://localhost:9000/orders
-        expectedStatus: 200
-        timeoutInSeconds: 5
-        headers:
-          Content-Type: application/json
-        requestBody: '{"id":123,"status":"ACCEPTED","timestamp":"2025-04-12T14:30:00Z"}'
-
-  # HTTP side-effect for initiateOrderDelivery operation
-  - target: ${'$'}.operations.initiateOrderDelivery
-    update:
-      x-specmatic-side-effect:
-        type: http
-        method: GET
-        url: http://localhost:9000/orders/123?status=SHIPPED
-        expectedStatus: 200
-        timeoutInSeconds: 5
-""".trimIndent()
-
-        File(generatedOverlayPath).writeText(overlayContent)
-        println("Generated overlay file at: $generatedOverlayPath")
-        println("Overlay configured for: receive=$receiveProtocol, send=$sendProtocol")
+        mapper.writeValue(file, root)
     }
 }
