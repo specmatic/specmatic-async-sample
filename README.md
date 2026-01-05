@@ -6,6 +6,8 @@ By updating just a few lines in the ContractTest (described below), you can run 
 
 Give it a try to experience how specmatic-async makes protocol-agnostic asynchronous contract testing simple and scalable.
 
+To understand the architecture of the application in detail, refer to [ARCHITECTURE.md](./ARCHITECTURE.md)
+
 ## Running Specmatic Async Contract Tests
 
 ```bash
