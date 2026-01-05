@@ -29,7 +29,7 @@ dependencies {
     implementation 'org.springframework.kafka:spring-kafka'
 
     // AWS SQS
-    implementation 'io.awspring.cloud:spring-cloud-aws-starter-sqs:3.1.0'
+    implementation 'io.awspring.cloud:spring-cloud-aws-starter-sqs:3.4.2'
 
     // MQTT
     implementation 'org.springframework.integration:spring-integration-mqtt'
