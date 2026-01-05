@@ -8,27 +8,36 @@ docker compose up -d
 
 Wait for all services to start (check with `docker compose ps`)
 
-## 2. Build & Run Application (Choose One)
+## 2. Configure Protocol Combination
 
-### Option A: Using Start Script (Recommended)
-```bash
-./start.sh
+Edit `src/main/resources/application.properties` and set your desired protocols:
+
+```properties
+receive.protocol=mqtt
+send.protocol=kafka
 ```
-Follow the prompts to select your protocol combination.
 
-### Option B: Manual Start
+Supported values: `kafka`, `sqs`, `mqtt`, `jms`, `amqp`
+
+## 3. Build & Run Application
+
 ```bash
 # Build
 ./gradlew clean build
 
-# Run with specific profile
-./gradlew bootRun --args="--spring.profiles.active=kafka-kafka"
-
-# OR edit application.properties and run
+# Run
 ./gradlew bootRun
 ```
 
-## 3. Test the Application
+## 4. Run Contract Tests
+
+```bash
+./gradlew test
+```
+
+**That's it!** The contract test automatically adapts to your protocol configuration.
+
+## 5. Test the Application Manually
 
 ### Using Test Script
 ```bash

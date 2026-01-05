@@ -19,6 +19,10 @@ servers:
     host: 'tcp://localhost:61616'
     protocol: jms
     description: JMS server
+  amqpServer:
+    host: 'localhost:5673'
+    protocol: amqp
+    description: RabbitMQ AMQP server
 channels:
   NewOrderPlaced:
     address: new-orders
