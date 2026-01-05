@@ -25,15 +25,10 @@ public class AmqpMessageListener {
         log.info("Received new order from AMQP");
         try {
             String payload = message.getPayload();
-            MessageWrapper<OrderRequest> wrapper = objectMapper.readValue(payload,
-                objectMapper.getTypeFactory().constructParametricType(MessageWrapper.class, OrderRequest.class));
-            
-            String correlationId = (String) message.getHeaders().get("orderCorrelationId");
-            if (correlationId == null) {
-                correlationId = wrapper.getOrderCorrelationId();
-            }
-            
-            orderService.processNewOrder(wrapper.getPayload(), correlationId);
+            OrderRequest orderRequest = objectMapper.readValue(payload, OrderRequest.class);
+            String correlationId = message.getHeaders().get("orderCorrelationId").toString();
+
+            orderService.processNewOrder(orderRequest, correlationId);
         } catch (Exception e) {
             log.error("Error processing new order from AMQP", e);
         }
@@ -44,15 +39,10 @@ public class AmqpMessageListener {
         log.info("Received cancel order from AMQP");
         try {
             String payload = message.getPayload();
-            MessageWrapper<CancelOrderRequest> wrapper = objectMapper.readValue(payload,
-                objectMapper.getTypeFactory().constructParametricType(MessageWrapper.class, CancelOrderRequest.class));
-            
-            String correlationId = (String) message.getHeaders().get("orderCorrelationId");
-            if (correlationId == null) {
-                correlationId = wrapper.getOrderCorrelationId();
-            }
-            
-            orderService.processCancelOrder(wrapper.getPayload(), correlationId);
+            CancelOrderRequest cancelOrderRequest = objectMapper.readValue(payload, CancelOrderRequest.class);
+            String correlationId = message.getHeaders().get("orderCorrelationId").toString();
+
+            orderService.processCancelOrder(cancelOrderRequest, correlationId);
         } catch (Exception e) {
             log.error("Error processing cancel order from AMQP", e);
         }

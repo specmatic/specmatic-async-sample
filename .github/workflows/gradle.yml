@@ -27,7 +27,7 @@ jobs:
 
       - name: Run tests
         run: |
-          protocols=(kafka sqs mqtt jms)
+          protocols=(kafka sqs mqtt jms amqp)
           
           for receive in "${protocols[@]}"; do
             for send in "${protocols[@]}"; do

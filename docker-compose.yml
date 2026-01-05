@@ -82,3 +82,49 @@ services:
       RABBITMQ_DEFAULT_PASS: guest
       # Change AMQP port to avoid conflict with Artemis
       RABBITMQ_NODE_PORT: 5673
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+
+  rabbitmq-init:
+    image: curlimages/curl:latest
+    network_mode: host
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: on-failure
+    entrypoint: /bin/sh
+    command: >
+      -c "
+      echo 'Waiting for RabbitMQ Management API...';
+      until curl -s -u guest:guest http://localhost:15672/api/overview >/dev/null 2>&1; do sleep 2; done;
+      
+      echo 'Creating RabbitMQ queues...';
+      curl -u guest:guest -X PUT http://localhost:15672/api/queues/%2F/new-orders -H 'content-type: application/json' -d '{\"durable\":true}';
+      curl -u guest:guest -X PUT http://localhost:15672/api/queues/%2F/wip-orders -H 'content-type: application/json' -d '{\"durable\":true}';
+      curl -u guest:guest -X PUT http://localhost:15672/api/queues/%2F/to-be-cancelled-orders -H 'content-type: application/json' -d '{\"durable\":true}';
+      curl -u guest:guest -X PUT http://localhost:15672/api/queues/%2F/cancelled-orders -H 'content-type: application/json' -d '{\"durable\":true}';
+      curl -u guest:guest -X PUT http://localhost:15672/api/queues/%2F/accepted-orders -H 'content-type: application/json' -d '{\"durable\":true}';
+      curl -u guest:guest -X PUT http://localhost:15672/api/queues/%2F/out-for-delivery-orders -H 'content-type: application/json' -d '{\"durable\":true}';
+      
+      echo 'Creating RabbitMQ exchanges...';
+      curl -u guest:guest -X PUT http://localhost:15672/api/exchanges/%2F/new-orders -H 'content-type: application/json' -d '{\"type\":\"direct\",\"durable\":true}';
+      curl -u guest:guest -X PUT http://localhost:15672/api/exchanges/%2F/wip-orders -H 'content-type: application/json' -d '{\"type\":\"direct\",\"durable\":true}';
+      curl -u guest:guest -X PUT http://localhost:15672/api/exchanges/%2F/to-be-cancelled-orders -H 'content-type: application/json' -d '{\"type\":\"direct\",\"durable\":true}';
+      curl -u guest:guest -X PUT http://localhost:15672/api/exchanges/%2F/cancelled-orders -H 'content-type: application/json' -d '{\"type\":\"direct\",\"durable\":true}';
+      curl -u guest:guest -X PUT http://localhost:15672/api/exchanges/%2F/accepted-orders -H 'content-type: application/json' -d '{\"type\":\"direct\",\"durable\":true}';
+      curl -u guest:guest -X PUT http://localhost:15672/api/exchanges/%2F/out-for-delivery-orders -H 'content-type: application/json' -d '{\"type\":\"direct\",\"durable\":true}';
+      
+      echo 'Creating RabbitMQ bindings...';
+      curl -u guest:guest -X POST http://localhost:15672/api/bindings/%2F/e/new-orders/q/new-orders -H 'content-type: application/json' -d '{\"routing_key\":\"new-orders\"}';
+      curl -u guest:guest -X POST http://localhost:15672/api/bindings/%2F/e/wip-orders/q/wip-orders -H 'content-type: application/json' -d '{\"routing_key\":\"wip-orders\"}';
+      curl -u guest:guest -X POST http://localhost:15672/api/bindings/%2F/e/to-be-cancelled-orders/q/to-be-cancelled-orders -H 'content-type: application/json' -d '{\"routing_key\":\"to-be-cancelled-orders\"}';
+      curl -u guest:guest -X POST http://localhost:15672/api/bindings/%2F/e/cancelled-orders/q/cancelled-orders -H 'content-type: application/json' -d '{\"routing_key\":\"cancelled-orders\"}';
+      curl -u guest:guest -X POST http://localhost:15672/api/bindings/%2F/e/accepted-orders/q/accepted-orders -H 'content-type: application/json' -d '{\"routing_key\":\"accepted-orders\"}';
+      curl -u guest:guest -X POST http://localhost:15672/api/bindings/%2F/e/out-for-delivery-orders/q/out-for-delivery-orders -H 'content-type: application/json' -d '{\"routing_key\":\"out-for-delivery-orders\"}';
+      
+      echo 'RabbitMQ exchanges, queues, and bindings created successfully!';
+      "
+

@@ -20,50 +20,50 @@ servers:
     host: "tcp://localhost:61616"
     protocol: "jms"
     description: "JMS server"
-#  amqpServer:
-#    host: "localhost:5673"
-#    protocol: "amqp"
-#    description: "RabbitMQ AMQP server"
+  amqpServer:
+    host: "amqp://localhost:5673"
+    protocol: "amqp"
+    description: "RabbitMQ AMQP server"
 channels:
   NewOrderPlaced:
     address: "new-orders"
     servers:
-    - $ref: "#/servers/jmsServer"
+    - $ref: "#/servers/amqpServer"
     messages:
       placeOrder.message:
         $ref: "#/components/messages/OrderRequest"
   OrderInitiated:
     address: "wip-orders"
     servers:
-    - $ref: "#/servers/mqttServer"
+    - $ref: "#/servers/kafkaServer"
     messages:
       processOrder.message:
         $ref: "#/components/messages/Order"
   OrderCancellationRequested:
     address: "to-be-cancelled-orders"
     servers:
-    - $ref: "#/servers/jmsServer"
+    - $ref: "#/servers/amqpServer"
     messages:
       cancelOrder.message:
         $ref: "#/components/messages/CancelOrderRequest"
   OrderCancelled:
     address: "cancelled-orders"
     servers:
-    - $ref: "#/servers/mqttServer"
+    - $ref: "#/servers/kafkaServer"
     messages:
       processCancellation.message:
         $ref: "#/components/messages/CancellationReference"
   OrderAccepted:
     address: "accepted-orders"
     servers:
-    - $ref: "#/servers/mqttServer"
+    - $ref: "#/servers/kafkaServer"
     messages:
       orderAccepted.message:
         $ref: "#/components/messages/OrderAccepted"
   OrderDeliveryInitiated:
     address: "out-for-delivery-orders"
     servers:
-    - $ref: "#/servers/jmsServer"
+    - $ref: "#/servers/amqpServer"
     messages:
       orderDeliveryInitiation.message:
         $ref: "#/components/messages/OutForDelivery"
