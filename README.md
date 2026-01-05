@@ -2,7 +2,7 @@
 
 This project showcases the flexibility of specmatic-async when working with different combinations of send and receive protocols.
 
-By updating just a few lines in the ContractTest (described below), you can run the same contract tests across multiple protocol pairings such as Kafka, SQS, JMS, MQTT, and AMQP.
+By updating just a few lines in the ContractTest (described below), you can run the same contract tests across multiple protocol pairings such as Kafka, SQS, JMS and MQTT.
 
 Give it a try to experience how specmatic-async makes protocol-agnostic asynchronous contract testing simple and scalable.
 
@@ -16,7 +16,7 @@ Give it a try to experience how specmatic-async makes protocol-agnostic asynchro
 
 You can test different protocol combinations by modifying the `recieve.protocol` and `send.protocol` in `ContractTest.kt`.
 
-Supported values: `kafka`, `sqs`, `mqtt`, `jms`, `amqp`
+Supported values: `kafka`, `sqs`, `mqtt`, `jms`
 
 ```shell
 @SpringBootTest(
@@ -48,7 +48,7 @@ receive.protocol=mqtt
 send.protocol=kafka
 ```
 
-Supported values: `kafka`, `sqs`, `mqtt`, `jms`, `amqp`
+Supported values: `kafka`, `sqs`, `mqtt`, `jms`
 
 ### 3. Build & Run Application
 
