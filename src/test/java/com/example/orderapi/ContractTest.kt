@@ -5,7 +5,6 @@ import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.test.context.ActiveProfiles
 import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.ComposeContainer
 import org.testcontainers.containers.GenericContainer
@@ -15,12 +14,11 @@ import java.io.File
 import java.time.Duration
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@ActiveProfiles("mqtt-kafka")
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT
 )
 class ContractTest {
-    private val overlayFilePath = "./src/test/resources/overlays/mqtt-kafka.yaml"
+    private val overlayFilePath = "./src/test/resources/overlays/jms-jms.yaml"
 
     companion object {
         private lateinit var infrastructure: ComposeContainer
