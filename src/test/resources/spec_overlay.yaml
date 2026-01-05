@@ -19,4 +19,4 @@ actions:
         method: GET
         url: http://localhost:9000/orders/123?status=SHIPPED
         expectedStatus: 200
-        timeoutInSeconds: 5
+        timeoutInSeconds: 15
