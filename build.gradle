@@ -47,7 +47,7 @@ dependencies {
     implementation 'com.fasterxml.jackson.module:jackson-module-kotlin'
 
     // JsonPath for YAML manipulation
-    implementation 'com.jayway.jsonpath:json-path:2.9.0'
+    implementation 'com.jayway.jsonpath:json-path:2.10.0'
 
     // Lombok
     compileOnly 'org.projectlombok:lombok'
