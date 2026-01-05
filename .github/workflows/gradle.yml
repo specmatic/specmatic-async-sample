@@ -34,7 +34,8 @@ jobs:
               echo "=============================================="
               echo "Running tests: receive=$receive send=$send"
               echo "=============================================="
-          
+
+              ./gradlew clean
               ./gradlew test \
                 -Dreceive.protocol=$receive \
                 -Dsend.protocol=$send \
