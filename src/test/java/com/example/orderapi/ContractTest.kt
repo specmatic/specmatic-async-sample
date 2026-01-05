@@ -26,7 +26,7 @@ import java.time.Duration
     webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT,
     // Note - Update these to try out different protocol combinations
     properties = [
-        "receive.protocol=amqp",
+        "receive.protocol=sqs",
         "send.protocol=kafka"
     ]
 )
