@@ -1,0 +1,43 @@
+
+name: Java CI with Gradle
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda
+
+      - name: Run tests
+        run: |
+          protocols=(kafka sqs mqtt jms amqp)
+          
+          for receive in "${protocols[@]}"; do
+            for send in "${protocols[@]}"; do
+              echo "=============================================="
+              echo "Running tests: receive=$receive send=$send"
+              echo "=============================================="
+          
+              ./gradlew test \
+                -Dreceive.protocol=$receive \
+                -Dsend.protocol=$send \
+                --no-daemon
+            done
+          done
