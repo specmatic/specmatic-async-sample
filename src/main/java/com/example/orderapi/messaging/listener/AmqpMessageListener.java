@@ -10,6 +10,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.messaging.Message;
 import org.springframework.stereotype.Component;
 
+import java.util.Objects;
+
 @Slf4j
 @Component
 @ConditionalOnProperty(name = "receive.protocol", havingValue = "amqp")
@@ -26,7 +28,7 @@ public class AmqpMessageListener {
         try {
             String payload = message.getPayload();
             OrderRequest orderRequest = objectMapper.readValue(payload, OrderRequest.class);
-            String correlationId = message.getHeaders().get("orderCorrelationId").toString();
+            String correlationId = Objects.requireNonNull(message.getHeaders().get("orderCorrelationId")).toString();
 
             orderService.processNewOrder(orderRequest, correlationId);
         } catch (Exception e) {
@@ -40,7 +42,7 @@ public class AmqpMessageListener {
         try {
             String payload = message.getPayload();
             CancelOrderRequest cancelOrderRequest = objectMapper.readValue(payload, CancelOrderRequest.class);
-            String correlationId = message.getHeaders().get("orderCorrelationId").toString();
+            String correlationId = Objects.requireNonNull(message.getHeaders().get("orderCorrelationId")).toString();
 
             orderService.processCancelOrder(cancelOrderRequest, correlationId);
         } catch (Exception e) {

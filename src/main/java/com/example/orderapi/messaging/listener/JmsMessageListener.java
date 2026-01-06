@@ -31,7 +31,7 @@ public class JmsMessageListener {
             String payload = extractPayload(message);
             String correlationId = message.getStringProperty("orderCorrelationId");
 
-            log.debug("Payload: {}", payload);
+            log.debug("new-orders Payload: {}", payload);
             OrderRequest orderRequest = objectMapper.readValue(payload, OrderRequest.class);
 
             orderService.processNewOrder(orderRequest, correlationId);
@@ -47,7 +47,7 @@ public class JmsMessageListener {
             String payload = extractPayload(message);
             String correlationId = message.getStringProperty("orderCorrelationId");
 
-            log.debug("Payload: {}", payload);
+            log.debug("to-be-cancelled-orders Payload: {}", payload);
             CancelOrderRequest cancelOrderRequest = objectMapper.readValue(payload, CancelOrderRequest.class);
 
             orderService.processCancelOrder(cancelOrderRequest, correlationId);
@@ -62,7 +62,7 @@ public class JmsMessageListener {
         try {
             String payload = extractPayload(message);
 
-            log.debug("Payload: {}", payload);
+            log.debug("out-for-delivery-orders Payload: {}", payload);
             OutForDelivery deliveryInfo = objectMapper.readValue(payload, OutForDelivery.class);
             orderService.processOrderDelivery(deliveryInfo);
         } catch (Exception e) {

@@ -62,9 +62,8 @@ public class AmqpConfig {
 
     @Bean
     public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory) {
-        RabbitTemplate template = new RabbitTemplate(connectionFactory);
         // Don't set a message converter - use default SimpleMessageConverter
         // This allows String payloads to be sent/received as-is
-        return template;
+        return new RabbitTemplate(connectionFactory);
     }
 }

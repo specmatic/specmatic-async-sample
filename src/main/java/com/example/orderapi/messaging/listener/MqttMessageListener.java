@@ -54,7 +54,7 @@ public class MqttMessageListener {
                 }
 
                 @Override
-                public void messageArrived(String topic, MqttMessage message) throws Exception {
+                public void messageArrived(String topic, MqttMessage message) {
                     handleMessage(topic, new String(message.getPayload()));
                 }
 

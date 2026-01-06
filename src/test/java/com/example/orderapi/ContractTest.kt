@@ -134,10 +134,10 @@ class ContractTest {
         val sendChannels = listOf("OrderInitiated", "OrderCancelled", "OrderAccepted")
 
         receiveChannels.forEach { channel ->
-            context.set("$.channels.$channel.servers[0].\$ref", "#/servers/${receiveProtocol}Server")
+            context.set($$"$.channels.$$channel.servers[0].$ref", "#/servers/${receiveProtocol}Server")
         }
         sendChannels.forEach { channel ->
-            context.set("$.channels.$channel.servers[0].\$ref", "#/servers/${sendProtocol}Server")
+            context.set($$"$.channels.$$channel.servers[0].$ref", "#/servers/${sendProtocol}Server")
         }
 
         mapper.writeValue(file, root)

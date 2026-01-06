@@ -1,5 +1,4 @@
 services:
-  # Kafka and Zookeeper
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     hostname: zookeeper
@@ -127,4 +126,3 @@ services:
       
       echo 'RabbitMQ exchanges, queues, and bindings created successfully!';
       "
-
