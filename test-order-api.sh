@@ -23,6 +23,29 @@ else
     JQ_AVAILABLE=true
 fi
 
+# container name discovery
+find_container() {
+    local service="$1"
+    local image="$2"
+    local name
+
+    # 1) Try docker-compose label (most reliable for compose-managed containers)
+    name=$(docker ps --filter "label=com.docker.compose.service=${service}" --format '{{.Names}}' | head -n1 2>/dev/null || true)
+    if [ -n "$name" ]; then
+        echo "$name"
+        return 0
+    fi
+
+    # Not found
+    return 1
+}
+
+# Resolve containers used by the script
+KAFKA_CONTAINER=$(find_container kafka confluentinc/cp-kafka) || { echo -e "${RED}Kafka container not found. Is docker-compose running?${NC}"; exit 1; }
+MOSQUITTO_CONTAINER=$(find_container mosquitto eclipse-mosquitto) || { echo -e "${RED}Mosquitto container not found. Is docker-compose running?${NC}"; exit 1; }
+ARTEMIS_CONTAINER=$(find_container artemis apache/activemq-artemis) || { echo -e "${RED}Artemis container not found. Is docker-compose running?${NC}"; exit 1; }
+RABBITMQ_CONTAINER=$(find_container rabbitmq rabbitmq) || { echo -e "${RED}RabbitMQ container not found. Is docker-compose running?${NC}"; exit 1; }
+
 # Function to test Kafka
 test_kafka() {
     echo -e "${GREEN}Testing Kafka...${NC}"
@@ -32,7 +55,7 @@ test_kafka() {
     
     # Send message
     echo "Sending order to Kafka topic 'new-orders'..."
-    echo "$MESSAGE" | docker exec -i kafka kafka-console-producer \
+    echo "$MESSAGE" | docker exec -i "$KAFKA_CONTAINER" kafka-console-producer \
         --broker-list localhost:9092 \
         --topic new-orders
     
@@ -73,7 +96,7 @@ test_mqtt() {
     MESSAGE='{"orderCorrelationId":"test-12345","payload":{"id":100,"orderItems":[{"id":1,"name":"Laptop","quantity":1,"price":1500.0}]}}'
     
     echo "Publishing to MQTT topic 'new-orders' on port 1884..."
-    docker exec mosquitto mosquitto_pub \
+    docker exec "$MOSQUITTO_CONTAINER" mosquitto_pub \
         -h localhost \
         -p 1884 \
         -t new-orders \
@@ -94,7 +117,7 @@ test_jms() {
     echo "Sending message to JMS queue 'new-orders' via Artemis..."
     
     # Using artemis CLI to send message
-    docker exec artemis /var/lib/artemis-instance/bin/artemis producer \
+    docker exec "$ARTEMIS_CONTAINER" /var/lib/artemis-instance/bin/artemis producer \
         --user admin \
         --password admin \
         --message-count 1 \
@@ -115,7 +138,7 @@ test_amqp() {
     MESSAGE='{"orderCorrelationId":"test-12345","payload":{"id":100,"orderItems":[{"id":1,"name":"Laptop","quantity":1,"price":1500.0}]}}'
     
     echo "Publishing to RabbitMQ queue 'new-orders' on port 5673..."
-    docker exec rabbitmq rabbitmqadmin publish \
+    docker exec "$RABBITMQ_CONTAINER" rabbitmqadmin publish \
         exchange=amq.default \
         routing_key=new-orders \
         payload="$MESSAGE"
@@ -136,7 +159,7 @@ test_cancel_order() {
     MESSAGE='{"orderCorrelationId":"cancel-12345","payload":{"id":100}}'
     
     echo "Sending cancel order request..."
-    echo "$MESSAGE" | docker exec -i kafka kafka-console-producer \
+    echo "$MESSAGE" | docker exec -i "$KAFKA_CONTAINER" kafka-console-producer \
         --broker-list localhost:9092 \
         --topic to-be-cancelled-orders
     
@@ -153,7 +176,7 @@ test_delivery() {
     MESSAGE='{"orderId":100,"deliveryAddress":"123 Main St, City","deliveryDate":"2026-01-15"}'
     
     echo "Sending delivery initiation..."
-    echo "$MESSAGE" | docker exec -i kafka kafka-console-producer \
+    echo "$MESSAGE" | docker exec -i "$KAFKA_CONTAINER" kafka-console-producer \
         --broker-list localhost:9092 \
         --topic out-for-delivery-orders
     

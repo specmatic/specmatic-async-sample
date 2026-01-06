@@ -31,6 +31,9 @@ Supported values: `kafka`, `sqs`, `mqtt`, `jms`, `amqp`
 )
 ```
 
+### Test Report
+Once the tests have run, you can view the Specmatic test reports generated at: [build/reports/specmatic/async/test/html/index.html](build/reports/specmatic/async/test/html/index.html)
+
 ## Starting the application for local testing
 
 ### 1. Start Infrastructure (30 seconds)
@@ -43,7 +46,7 @@ Wait for all services to start (check with `docker compose ps`)
 
 ### 2. Configure Protocol Combination
 
-Edit `src/main/resources/application.properties` and set your desired protocols:
+Edit [src/main/resources/application.properties](src/main/resources/application.properties) and set your desired protocols:
 
 ```properties
 receive.protocol=mqtt
@@ -52,13 +55,15 @@ send.protocol=kafka
 
 Supported values: `kafka`, `sqs`, `mqtt`, `jms`, `amqp`
 
-### 3. Build & Run Application
+### 3. Run Application
 
 ```bash
-# Build
-./gradlew clean build
-
-# Run
 ./gradlew bootRun
 ```
 
+### 4. Test Application
+You can test the application by using the provided shell script as follows:
+
+```bash
+./test-order-api.sh
+```
