@@ -15,14 +15,6 @@ echo -e "${GREEN}Order API Test Script${NC}"
 echo "================================"
 echo ""
 
-# Check if jq is installed
-if ! command -v jq &> /dev/null; then
-    echo -e "${YELLOW}Warning: jq not found. JSON formatting will be disabled.${NC}"
-    JQ_AVAILABLE=false
-else
-    JQ_AVAILABLE=true
-fi
-
 # container name discovery
 find_container() {
     local service="$1"
@@ -46,123 +38,155 @@ MOSQUITTO_CONTAINER=$(find_container mosquitto eclipse-mosquitto) || { echo -e "
 ARTEMIS_CONTAINER=$(find_container artemis apache/activemq-artemis) || { echo -e "${RED}Artemis container not found. Is docker-compose running?${NC}"; exit 1; }
 RABBITMQ_CONTAINER=$(find_container rabbitmq rabbitmq) || { echo -e "${RED}RabbitMQ container not found. Is docker-compose running?${NC}"; exit 1; }
 
-# Function to test Kafka
-test_kafka() {
-    echo -e "${GREEN}Testing Kafka...${NC}"
-    
-    # Create test message
-    MESSAGE='{"orderCorrelationId":"test-12345","payload":{"id":100,"orderItems":[{"id":1,"name":"Laptop","quantity":1,"price":1500.0}]}}'
-    
-    # Send message
-    echo "Sending order to Kafka topic 'new-orders'..."
-    echo "$MESSAGE" | docker exec -i "$KAFKA_CONTAINER" kafka-console-producer \
-        --broker-list localhost:9092 \
-        --topic new-orders
-    
-    echo -e "${GREEN}Message sent successfully!${NC}"
-    echo "Check the application logs to see the processed order."
-    echo "To consume from wip-orders topic, run:"
-    echo "  docker exec -it kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic wip-orders --from-beginning"
+# New: determine protocols and channels from application.properties
+PROPS_FILE="./src/main/resources/application.properties"
+
+if [ ! -f "$PROPS_FILE" ]; then
+    echo -e "${RED}application.properties not found at $PROPS_FILE${NC}"
+    exit 1
+fi
+
+recv_protocol=$(grep -E '^\s*receive.protocol' "$PROPS_FILE" | cut -d'=' -f2 | tr -d '[:space:]')
+send_protocol=$(grep -E '^\s*send.protocol' "$PROPS_FILE" | cut -d'=' -f2 | tr -d '[:space:]')
+
+if [ -z "$recv_protocol" ] || [ -z "$send_protocol" ]; then
+    echo -e "${RED}Could not determine receive.protocol or send.protocol from $PROPS_FILE${NC}"
+    exit 1
+fi
+
+# Channels used for input and output (default keys used by app)
+CHANNEL_IN=$(grep -E '^\s*channel.new-orders' "$PROPS_FILE" | cut -d'=' -f2 | tr -d '[:space:]')
+CHANNEL_OUT=$(grep -E '^\s*channel.wip-orders' "$PROPS_FILE" | cut -d'=' -f2 | tr -d '[:space:]')
+
+: "${CHANNEL_IN:=new-orders}"
+: "${CHANNEL_OUT:=wip-orders}"
+
+echo "Detected receive.protocol=$recv_protocol send.protocol=$send_protocol"
+echo "Will send to channel: $CHANNEL_IN and check replies on: $CHANNEL_OUT"
+
+# Shared test message
+MESSAGE='{"orderCorrelationId":"test-12345","payload":{"id":100,"orderItems":[{"id":1,"name":"Laptop","quantity":1,"price":1500.0}]}}'
+
+# Send helper (protocol -> send to input channel)
+send_by_protocol() {
+    local protocol="$1"
+    local channel="$2"
+
+    case "$protocol" in
+        kafka)
+            echo "Sending to Kafka topic '$channel'..."
+            echo "$MESSAGE" | docker exec -i "$KAFKA_CONTAINER" kafka-console-producer \
+                --broker-list localhost:9092 \
+                --topic "$channel"
+            ;;
+        sqs)
+            echo "Sending to SQS queue '$channel'..."
+            aws --endpoint-url=http://localhost:4566 sqs create-queue --queue-name "$channel" --region us-east-1 || true
+            aws --endpoint-url=http://localhost:4566 sqs send-message \
+                --queue-url "http://localhost:4566/000000000000/$channel" \
+                --message-body "$MESSAGE" \
+                --message-attributes "orderCorrelationId={StringValue=$(echo "$MESSAGE" | jq -r .orderCorrelationId 2>/dev/null || echo auto),DataType=String}" \
+                --region us-east-1
+            ;;
+        mqtt)
+            echo "Publishing to MQTT topic '$channel'..."
+            docker exec "$MOSQUITTO_CONTAINER" mosquitto_pub \
+                -h localhost \
+                -p 1884 \
+                -t "$channel" \
+                -m "$MESSAGE"
+            ;;
+        jms)
+            echo "Sending JMS message to '$channel' (Artemis)..."
+            docker exec "$ARTEMIS_CONTAINER" /var/lib/artemis-instance/bin/artemis producer \
+                --user admin \
+                --password admin \
+                --message-count 1 \
+                --destination "$channel" \
+                --message "$MESSAGE" \
+                --url tcp://localhost:61616
+            ;;
+        amqp)
+            echo "Publishing to RabbitMQ queue '$channel'..."
+            docker exec "$RABBITMQ_CONTAINER" rabbitmqadmin publish \
+                exchange=amq.default \
+                routing_key="$channel" \
+                payload="$MESSAGE"
+            ;;
+        *)
+            echo -e "${RED}Unsupported receive.protocol: $protocol${NC}"
+            exit 1
+            ;;
+    esac
 }
 
-# Function to test SQS
-test_sqs() {
-    echo -e "${GREEN}Testing SQS...${NC}"
-    
-    # Create queue if it doesn't exist
-    echo "Creating queue 'new-orders' in LocalStack..."
-    aws --endpoint-url=http://localhost:4566 sqs create-queue --queue-name new-orders --region us-east-1 || true
-    
-    # Send message
-    MESSAGE='{"orderCorrelationId":"test-12345","payload":{"id":100,"orderItems":[{"id":1,"name":"Laptop","quantity":1,"price":1500.0}]}}'
-    
-    echo "Sending order to SQS queue 'new-orders'..."
-    aws --endpoint-url=http://localhost:4566 sqs send-message \
-        --queue-url http://localhost:4566/000000000000/new-orders \
-        --message-body "$MESSAGE" \
-        --message-attributes 'orderCorrelationId={StringValue=test-12345,DataType=String}' \
-        --region us-east-1
-    
-    echo -e "${GREEN}Message sent successfully!${NC}"
-    echo "Check the application logs to see the processed order."
-    echo "To receive from wip-orders queue, run:"
-    echo "  aws --endpoint-url=http://localhost:4566 sqs receive-message --queue-url http://localhost:4566/000000000000/wip-orders --region us-east-1"
+# Receive/check helper (protocol -> attempt to read one message from output channel)
+check_reply() {
+    local protocol="$1"
+    local channel="$2"
+    local output
+
+    case "$protocol" in
+        kafka)
+            echo "Attempting to consume one message from Kafka topic '$channel'..."
+            output=$(docker exec "$KAFKA_CONTAINER" bash -c "timeout 10 kafka-console-consumer --bootstrap-server localhost:9092 --topic \"$channel\" --from-beginning --max-messages 1" 2>/dev/null || true)
+            ;;
+        sqs)
+            echo "Attempting to receive one message from SQS queue '$channel'..."
+            output=$(aws --endpoint-url=http://localhost:4566 sqs receive-message \
+                --queue-url "http://localhost:4566/000000000000/$channel" \
+                --max-number-of-messages 1 \
+                --region us-east-1 2>/dev/null || true)
+            ;;
+        mqtt)
+            echo "Subscribing to MQTT topic '$channel' for one message..."
+            output=$(timeout 10 docker exec "$MOSQUITTO_CONTAINER" mosquitto_sub -h localhost -p 1884 -t "$channel" -C 1 2>/dev/null || true)
+            ;;
+        jms)
+            echo "Attempting to consume one JMS message from '$channel' (Artemis)..."
+            output=$(docker exec "$ARTEMIS_CONTAINER" /var/lib/artemis-instance/bin/artemis consumer \
+                --user admin \
+                --password admin \
+                --destination "$channel" \
+                --message-count 1 \
+                --url tcp://localhost:61616 2>/dev/null || true)
+            ;;
+        amqp)
+            echo "Attempting to get one message from RabbitMQ queue '$channel'..."
+            output=$(docker exec "$RABBITMQ_CONTAINER" rabbitmqadmin get queue="$channel" count=1 requeue=false 2>/dev/null || true)
+            ;;
+        *)
+            echo -e "${RED}Unsupported send.protocol: $protocol${NC}"
+            exit 1
+            ;;
+    esac
+
+    if [ -n "$output" ]; then
+        echo -e "${GREEN}Reply received on $protocol/$channel:${NC}"
+        echo "$output"
+        return 0
+    else
+        echo -e "${RED}No reply received on $protocol/$channel within timeout.${NC}"
+        return 1
+    fi
 }
 
-# Function to test MQTT
-test_mqtt() {
-    echo -e "${GREEN}Testing MQTT...${NC}"
-    
-    MESSAGE='{"orderCorrelationId":"test-12345","payload":{"id":100,"orderItems":[{"id":1,"name":"Laptop","quantity":1,"price":1500.0}]}}'
-    
-    echo "Publishing to MQTT topic 'new-orders' on port 1884..."
-    docker exec "$MOSQUITTO_CONTAINER" mosquitto_pub \
-        -h localhost \
-        -p 1884 \
-        -t new-orders \
-        -m "$MESSAGE"
-    
-    echo -e "${GREEN}Message published successfully!${NC}"
-    echo "Check the application logs to see the processed order."
-    echo "To subscribe to wip-orders topic, run:"
-    echo "  docker exec -it mosquitto mosquitto_sub -h localhost -p 1884 -t wip-orders"
-}
-
-# Function to test JMS
-test_jms() {
-    echo -e "${GREEN}Testing JMS (Artemis)...${NC}"
-    
-    MESSAGE='{"orderCorrelationId":"test-12345","payload":{"id":100,"orderItems":[{"id":1,"name":"Laptop","quantity":1,"price":1500.0}]}}'
-    
-    echo "Sending message to JMS queue 'new-orders' via Artemis..."
-    
-    # Using artemis CLI to send message
-    docker exec "$ARTEMIS_CONTAINER" /var/lib/artemis-instance/bin/artemis producer \
-        --user admin \
-        --password admin \
-        --message-count 1 \
-        --destination new-orders \
-        --message "$MESSAGE" \
-        --url tcp://localhost:61616
-    
-    echo -e "${GREEN}Message sent successfully!${NC}"
-    echo "Check the application logs to see the processed order."
-    echo "To consume from wip-orders queue, run:"
-    echo "  docker exec artemis /var/lib/artemis-instance/bin/artemis consumer --user admin --password admin --destination wip-orders --url tcp://localhost:61616"
-}
-
-# Function to test AMQP
-test_amqp() {
-    echo -e "${GREEN}Testing AMQP (RabbitMQ)...${NC}"
-    
-    MESSAGE='{"orderCorrelationId":"test-12345","payload":{"id":100,"orderItems":[{"id":1,"name":"Laptop","quantity":1,"price":1500.0}]}}'
-    
-    echo "Publishing to RabbitMQ queue 'new-orders' on port 5673..."
-    docker exec "$RABBITMQ_CONTAINER" rabbitmqadmin publish \
-        exchange=amq.default \
-        routing_key=new-orders \
-        payload="$MESSAGE"
-    
-    echo -e "${GREEN}Message published successfully!${NC}"
-    echo "Check the application logs to see the processed order."
-    echo "To consume from wip-orders queue, run:"
-    echo "  docker exec rabbitmq rabbitmqadmin get queue=wip-orders"
-    echo ""
-    echo "Or access RabbitMQ Management UI:"
-    echo "  http://localhost:15672 (guest/guest)"
-}
+# Main automatic flow: send to receive.protocol channel, then check send.protocol channel
+echo ""
+echo "Sending test message to receive.protocol=$recv_protocol on channel '$CHANNEL_IN'..."
+send_by_protocol "$recv_protocol" "$CHANNEL_IN"
 
 # Function to test Cancel Order
 test_cancel_order() {
     echo -e "${GREEN}Testing Cancel Order (Kafka)...${NC}"
-    
+
     MESSAGE='{"orderCorrelationId":"cancel-12345","payload":{"id":100}}'
-    
+
     echo "Sending cancel order request..."
     echo "$MESSAGE" | docker exec -i "$KAFKA_CONTAINER" kafka-console-producer \
         --broker-list localhost:9092 \
         --topic to-be-cancelled-orders
-    
+
     echo -e "${GREEN}Cancel request sent successfully!${NC}"
     echo "Check the application logs to see the processed cancellation."
     echo "To consume from cancelled-orders topic, run:"
@@ -172,62 +196,26 @@ test_cancel_order() {
 # Function to test Delivery Initiation
 test_delivery() {
     echo -e "${GREEN}Testing Delivery Initiation (Kafka)...${NC}"
-    
+
     MESSAGE='{"orderId":100,"deliveryAddress":"123 Main St, City","deliveryDate":"2026-01-15"}'
-    
+
     echo "Sending delivery initiation..."
     echo "$MESSAGE" | docker exec -i "$KAFKA_CONTAINER" kafka-console-producer \
         --broker-list localhost:9092 \
         --topic out-for-delivery-orders
-    
+
     echo -e "${GREEN}Delivery initiation sent successfully!${NC}"
     echo "Check the application logs to see the processed delivery."
 }
 
-# Main menu
-echo "Select a test to run:"
-echo "1) Test Kafka - Place Order"
-echo "2) Test SQS - Place Order"
-echo "3) Test MQTT - Place Order (port 1884)"
-echo "4) Test JMS (Artemis) - Place Order"
-echo "5) Test AMQP (RabbitMQ) - Place Order (port 5673)"
-echo "6) Test Cancel Order (Kafka)"
-echo "7) Test Delivery Initiation (Kafka)"
-echo "8) Exit"
-echo ""
-read -p "Enter choice [1-8]: " choice
-
-case $choice in
-    1)
-        test_kafka
-        ;;
-    2)
-        test_sqs
-        ;;
-    3)
-        test_mqtt
-        ;;
-    4)
-        test_jms
-        ;;
-    5)
-        test_amqp
-        ;;
-    6)
-        test_cancel_order
-        ;;
-    7)
-        test_delivery
-        ;;
-    8)
-        echo "Exiting..."
-        exit 0
-        ;;
-    *)
-        echo -e "${RED}Invalid choice${NC}"
-        exit 1
-        ;;
-esac
+echo "Checking for reply on send.protocol=$send_protocol on channel '$CHANNEL_OUT'..."
+if check_reply "$send_protocol" "$CHANNEL_OUT"; then
+    echo -e "${GREEN}Test succeeded: reply observed.${NC}"
+    exit 0
+else
+    echo -e "${RED}Test failed: no reply observed.${NC}"
+    exit 2
+fi
 
 echo ""
 echo -e "${GREEN}Test completed!${NC}"
