@@ -10,6 +10,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
@@ -20,6 +23,8 @@ public class OrderService {
 
     private final ConcurrentHashMap<Integer, Order> orderDatabase = new ConcurrentHashMap<>();
 
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
+
     @Value("${channel.wip-orders}")
     private String wipOrdersChannel;
 
@@ -28,6 +33,18 @@ public class OrderService {
 
     @Value("${channel.accepted-orders}")
     private String acceptedOrdersChannel;
+
+    @Value("${retry.cancel-order.enabled:true}")
+    private boolean cancelOrderRetryEnabled;
+
+    @Value("${retry.cancel-order.max-attempts:3}")
+    private int cancelOrderMaxAttempts;
+
+    @Value("${retry.cancel-order.initial-delay-seconds:5}")
+    private int cancelOrderInitialDelaySeconds;
+
+    @Value("${retry.cancel-order.multiplier:2}")
+    private int cancelOrderMultiplier;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -64,12 +81,59 @@ public class OrderService {
             String payload = objectMapper.writeValueAsString(cancellationRef);
             
             if (messagePublisher != null) {
-                messagePublisher.publish(cancelledOrdersChannel, payload, correlationId);
-                log.info("Order {} cancelled", cancelRequest.getId());
+                // Check if this is a retry scenario (order id 999 triggers retry)
+                boolean shouldSimulateFailure = cancelRequest.getId() == 999 && cancelOrderRetryEnabled;
+                
+                if (shouldSimulateFailure) {
+                    // Simulate initial failure - don't publish immediately
+                    log.info("Simulating initial failure for order {}, scheduling async retries", cancelRequest.getId());
+                    scheduleAsyncRetries(cancelledOrdersChannel, payload, correlationId);
+                } else {
+                    // Normal flow - publish immediately
+                    messagePublisher.publish(cancelledOrdersChannel, payload, correlationId);
+                    log.info("Order {} cancelled", cancelRequest.getId());
+                }
             }
         } catch (Exception e) {
             log.error("Error processing cancel order", e);
             throw new RuntimeException("Failed to process cancel order", e);
+        }
+    }
+
+    private void scheduleAsyncRetries(String channel, String payload, String correlationId) {
+        long initialDelayMillis = cancelOrderInitialDelaySeconds * 1000L;
+        // Add buffer time to ensure Specmatic's subscriber is ready before publishing
+        long bufferMillis = 2000L;
+
+        for (int attempt = 1; attempt <= cancelOrderMaxAttempts; attempt++) {
+            final int currentAttempt = attempt;
+
+            // Calculate delay using exponential backoff
+            // Specmatic waits for: initialDelay * multiplier^(attempt-1) before listening
+            // We add buffer time to ensure it's listening before we publish
+            long delayMillis = (long) (initialDelayMillis * Math.pow(cancelOrderMultiplier, attempt - 1)) + bufferMillis;
+
+            scheduler.schedule(() -> {
+                try {
+                    log.info("Async retry attempt {} for order cancellation on channel: {} (scheduled at {}ms)",
+                            currentAttempt, channel, delayMillis);
+
+                    // Fail the first attempt to ensure Specmatic starts listening first
+                    if (currentAttempt < 3) {
+                        log.warn("Simulating failure on async attempt {}", currentAttempt);
+                        return; // Don't publish
+                    }
+
+                    if (currentAttempt == 3) {
+                        // Publish on subsequent attempts
+                        messagePublisher.publish(channel, payload, correlationId);
+                        log.info("Order cancellation message published successfully on async attempt {}", currentAttempt);
+                    }
+
+                } catch (Exception e) {
+                    log.error("Error on async retry attempt {}", currentAttempt, e);
+                }
+            }, delayMillis, TimeUnit.MILLISECONDS);
         }
     }
 

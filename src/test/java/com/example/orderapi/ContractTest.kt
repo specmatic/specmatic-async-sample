@@ -26,8 +26,8 @@ import java.time.Duration
     webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT,
     // Note - Update these to try out different protocol combinations
     properties = [
-        "receive.protocol=mqtt",
-        "send.protocol=sqs"
+        "receive.protocol=kafka",
+        "send.protocol=kafka"
     ]
 )
 class ContractTest {
@@ -72,8 +72,8 @@ class ContractTest {
         println("Running contract test for: receive=$receiveProtocol, send=$sendProtocol")
 
         val specmaticContainer = GenericContainer(DockerImageName.parse("specmatic/specmatic-async"))
-            .withCommand("test --overlay=overlay.yaml")
-            .withImagePullPolicy(PullPolicy.alwaysPull())
+            .withCommand("test --overlay=overlay.yaml --reply-timeout=100")
+            // .withImagePullPolicy(PullPolicy.alwaysPull())
             .withFileSystemBind(
                 "./specmatic.yaml",
                 "/usr/src/app/specmatic.yaml",
