@@ -26,8 +26,8 @@ import java.time.Duration
     webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT,
     // Note - Update these to try out different protocol combinations
     properties = [
-        "receive.protocol=mqtt",
-        "send.protocol=sqs"
+        "receive.protocol=amqp",
+        "send.protocol=kafka"
     ]
 )
 class ContractTest {
@@ -72,8 +72,8 @@ class ContractTest {
         println("Running contract test for: receive=$receiveProtocol, send=$sendProtocol")
 
         val specmaticContainer = GenericContainer(DockerImageName.parse("specmatic/specmatic-async"))
-            .withCommand("test --overlay=overlay.yaml")
-            .withImagePullPolicy(PullPolicy.alwaysPull())
+            .withCommand("test --overlay=overlay.yaml --reply-timeout=100")
+            // .withImagePullPolicy(PullPolicy.alwaysPull())
             .withFileSystemBind(
                 "./specmatic.yaml",
                 "/usr/src/app/specmatic.yaml",
@@ -97,7 +97,7 @@ class ContractTest {
             .withNetworkMode("host")
             .withStartupTimeout(Duration.ofMinutes(5))
             .withLogConsumer { print(it.utf8String) }
-            .waitingFor(Wait.forLogMessage(".*(Failed:|Success).*", 1)
+            .waitingFor(Wait.forLogMessage(".*Failed:.*", 1)
                 .withStartupTimeout(Duration.ofMinutes(3)))
 
         try {
@@ -130,7 +130,7 @@ class ContractTest {
 
         val context = JsonPath.using(configuration).parse(root)
 
-        val receiveChannels = listOf("NewOrderPlaced", "OrderCancellationRequested", "OrderDeliveryInitiated")
+        val receiveChannels = listOf("NewOrderPlaced", "OrderCancellationRequested", "OrderCancellationRetry", "OrderDeliveryInitiated")
         val sendChannels = listOf("OrderInitiated", "OrderCancelled", "OrderAccepted")
 
         receiveChannels.forEach { channel ->

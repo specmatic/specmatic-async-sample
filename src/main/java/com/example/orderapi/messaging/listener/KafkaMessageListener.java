@@ -43,6 +43,17 @@ public class KafkaMessageListener {
         }
     }
 
+    @KafkaListener(topics = "${channel.retry-failed-cancelled-orders}", groupId = "${spring.kafka.consumer.group-id}")
+    public void handleRetryFailedCancelOrder(@Payload String message, @Header(value = "orderCorrelationId", required = false) String correlationId) {
+        log.info("Received retry failed cancel order from Kafka - CorrelationId: {}", correlationId);
+        try {
+            CancelOrderRequest cancelOrderRequest = objectMapper.readValue(message, CancelOrderRequest.class);
+            orderService.processRetryFailedCancelOrder(cancelOrderRequest, correlationId);
+        } catch (Exception e) {
+            log.error("Error processing retry failed cancel order from Kafka", e);
+        }
+    }
+
     @KafkaListener(topics = "${channel.out-for-delivery-orders}", groupId = "${spring.kafka.consumer.group-id}")
     public void handleOrderDelivery(@Payload String message) {
         log.info("Received order delivery from Kafka");

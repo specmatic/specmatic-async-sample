@@ -33,6 +33,9 @@ public class MqttMessageListener {
     @Value("${channel.to-be-cancelled-orders}")
     private String cancelOrdersChannel;
 
+    @Value("${channel.retry-failed-cancelled-orders}")
+    private String retryFailedCancelOrdersChannel;
+
     @Value("${channel.out-for-delivery-orders}")
     private String deliveryOrdersChannel;
 
@@ -67,6 +70,7 @@ public class MqttMessageListener {
             
             mqttClient.subscribe(newOrdersChannel);
             mqttClient.subscribe(cancelOrdersChannel);
+            mqttClient.subscribe(retryFailedCancelOrdersChannel);
             mqttClient.subscribe(deliveryOrdersChannel);
             
             log.info("MQTT Listener connected and subscribed to topics");
@@ -85,6 +89,9 @@ public class MqttMessageListener {
             } else if (topic.equals(cancelOrdersChannel)) {
                 CancelOrderRequest cancelOrderRequest = objectMapper.readValue(payload, CancelOrderRequest.class);
                 orderService.processCancelOrder(cancelOrderRequest, "");
+            } else if (topic.equals(retryFailedCancelOrdersChannel)) {
+                CancelOrderRequest cancelOrderRequest = objectMapper.readValue(payload, CancelOrderRequest.class);
+                orderService.processRetryFailedCancelOrder(cancelOrderRequest, "");
             } else if (topic.equals(deliveryOrdersChannel)) {
                 OutForDelivery deliveryInfo = objectMapper.readValue(payload, OutForDelivery.class);
                 orderService.processOrderDelivery(deliveryInfo);

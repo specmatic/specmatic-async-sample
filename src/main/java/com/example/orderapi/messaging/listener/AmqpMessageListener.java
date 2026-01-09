@@ -50,6 +50,20 @@ public class AmqpMessageListener {
         }
     }
 
+//    @RabbitListener(queues = "${channel.retry-failed-cancelled-orders}")
+//    public void handleRetryFailedCancelOrder(Message<String> message) {
+//        log.info("Received retry failed cancel order from AMQP");
+//        try {
+//            String payload = message.getPayload();
+//            CancelOrderRequest cancelOrderRequest = objectMapper.readValue(payload, CancelOrderRequest.class);
+//            String correlationId = Objects.requireNonNull(message.getHeaders().get("orderCorrelationId")).toString();
+//
+//            orderService.processRetryFailedCancelOrder(cancelOrderRequest, correlationId);
+//        } catch (Exception e) {
+//            log.error("Error processing retry failed cancel order from AMQP", e);
+//        }
+//    }
+
     @RabbitListener(queues = "${channel.out-for-delivery-orders}")
     public void handleOrderDelivery(String payload) {
         log.info("Received order delivery from AMQP");

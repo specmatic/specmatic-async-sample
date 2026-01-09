@@ -21,6 +21,9 @@ public class AmqpConfig {
     @Value("${channel.to-be-cancelled-orders}")
     private String cancelOrdersChannel;
 
+    @Value("${channel.retry-failed-cancelled-orders}")
+    private String retryFailedCancelOrdersChannel;
+
     @Value("${channel.cancelled-orders}")
     private String cancelledOrdersChannel;
 
@@ -43,6 +46,11 @@ public class AmqpConfig {
     @Bean
     public Queue cancelOrdersQueue() {
         return new Queue(cancelOrdersChannel, false);
+    }
+
+    @Bean
+    public Queue retryFailedCancelOrdersQueue() {
+        return new Queue(retryFailedCancelOrdersChannel, false);
     }
 
     @Bean

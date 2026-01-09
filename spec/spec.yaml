@@ -28,7 +28,7 @@ channels:
   NewOrderPlaced:
     address: "new-orders"
     servers:
-    - $ref: "#/servers/sqsServer"
+    - $ref: "#/servers/amqpServer"
     messages:
       placeOrder.message:
         $ref: "#/components/messages/OrderRequest"
@@ -42,7 +42,7 @@ channels:
   OrderCancellationRequested:
     address: "to-be-cancelled-orders"
     servers:
-    - $ref: "#/servers/sqsServer"
+    - $ref: "#/servers/amqpServer"
     messages:
       cancelOrder.message:
         $ref: "#/components/messages/CancelOrderRequest"
@@ -53,6 +53,13 @@ channels:
     messages:
       processCancellation.message:
         $ref: "#/components/messages/CancellationReference"
+  OrderCancellationRetry:
+    address: "retry-failed-cancelled-orders"
+    servers:
+    - $ref: "#/servers/amqpServer"
+    messages:
+      cancelOrder.message:
+        $ref: "#/components/messages/CancelOrderRequest"
   OrderAccepted:
     address: "accepted-orders"
     servers:
@@ -63,7 +70,7 @@ channels:
   OrderDeliveryInitiated:
     address: "out-for-delivery-orders"
     servers:
-    - $ref: "#/servers/sqsServer"
+    - $ref: "#/servers/amqpServer"
     messages:
       orderDeliveryInitiation.message:
         $ref: "#/components/messages/OutForDelivery"
@@ -90,6 +97,16 @@ operations:
         $ref: "#/channels/OrderCancelled"
       messages:
       - $ref: "#/channels/OrderCancelled/messages/processCancellation.message"
+    x-specmatic-retry:
+      channel:
+        $ref: "#/channels/OrderCancellationRetry"
+      messages:
+      - $ref: "#/channels/OrderCancellationRetry/messages/cancelOrder.message"
+      maxAttempts: 3
+      strategy:
+        type: "exponential"
+        initialDelaySeconds: 5
+        multiplier: 2
   orderAccepted:
     action: "send"
     channel:
@@ -212,6 +229,11 @@ components:
           orderCorrelationId: 12345
         payload:
           id: 10
+      - name: "CANCEL_ORDER_WITH_RETRY"
+        headers:
+          orderCorrelationId: 54321
+        payload:
+          id: 999
     CancellationReference:
       name: "CancellationReference"
       title: "A cancellation reference in response to a cancel order request"
@@ -239,6 +261,12 @@ components:
           orderCorrelationId: 12345
         payload:
           reference: 10
+          status: "CANCELLED"
+      - name: "CANCEL_ORDER_WITH_RETRY"
+        headers:
+          orderCorrelationId: 54321
+        payload:
+          reference: 999
           status: "CANCELLED"
     OrderAccepted:
       name: "OrderAccepted"

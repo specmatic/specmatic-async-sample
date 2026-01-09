@@ -48,6 +48,20 @@ public class SqsMessageListener {
         }
     }
 
+    @SqsListener("${channel.retry-failed-cancelled-orders}")
+    public void handleRetryFailedCancelOrder(Message<String> message) {
+        log.info("Received retry failed cancel order from SQS");
+        try {
+            String payload = message.getPayload();
+            CancelOrderRequest cancelOrderRequest = objectMapper.readValue(payload, CancelOrderRequest.class);
+            String correlationId = (String) message.getHeaders().get("orderCorrelationId");
+
+            orderService.processRetryFailedCancelOrder(cancelOrderRequest, correlationId);
+        } catch (Exception e) {
+            log.error("Error processing retry failed cancel order from SQS", e);
+        }
+    }
+
     @SqsListener("${channel.out-for-delivery-orders}")
     public void handleOrderDelivery(String payload) {
         log.info("Received order delivery from SQS");

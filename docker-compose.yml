@@ -47,6 +47,7 @@ services:
       awslocal sqs create-queue --queue-name new-orders;
       awslocal sqs create-queue --queue-name wip-orders;
       awslocal sqs create-queue --queue-name to-be-cancelled-orders;
+      awslocal sqs create-queue --queue-name retry-failed-cancelled-orders;
       awslocal sqs create-queue --queue-name cancelled-orders;
       awslocal sqs create-queue --queue-name accepted-orders;
       awslocal sqs create-queue --queue-name out-for-delivery-orders;
@@ -104,6 +105,7 @@ services:
       curl -u guest:guest -X PUT http://localhost:15672/api/queues/%2F/new-orders -H 'content-type: application/json' -d '{\"durable\":true}';
       curl -u guest:guest -X PUT http://localhost:15672/api/queues/%2F/wip-orders -H 'content-type: application/json' -d '{\"durable\":true}';
       curl -u guest:guest -X PUT http://localhost:15672/api/queues/%2F/to-be-cancelled-orders -H 'content-type: application/json' -d '{\"durable\":true}';
+      curl -u guest:guest -X PUT http://localhost:15672/api/queues/%2F/retry-failed-cancelled-orders -H 'content-type: application/json' -d '{\"durable\":true}';
       curl -u guest:guest -X PUT http://localhost:15672/api/queues/%2F/cancelled-orders -H 'content-type: application/json' -d '{\"durable\":true}';
       curl -u guest:guest -X PUT http://localhost:15672/api/queues/%2F/accepted-orders -H 'content-type: application/json' -d '{\"durable\":true}';
       curl -u guest:guest -X PUT http://localhost:15672/api/queues/%2F/out-for-delivery-orders -H 'content-type: application/json' -d '{\"durable\":true}';
