@@ -10,6 +10,10 @@ To understand the architecture of the application in detail, refer to [ARCHITECT
 
 ## Running Specmatic Async Contract Tests
 
+### Prerequisites
+- Docker
+- Java
+
 ```bash
 ./gradlew test
 ```
