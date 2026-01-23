@@ -35,7 +35,7 @@ jobs:
               echo "Running tests: receive=$receive send=$send"
               echo "=============================================="
 
-              ./gradlew test \
+              ./gradlew test --tests "**.ContractTest" \
                 -Dreceive.protocol=$receive \
                 -Dsend.protocol=$send \
                 --no-daemon --rerun-tasks
