@@ -71,7 +71,7 @@ class ContractTest {
     fun runContractTest() {
         println("Running contract test for: receive=$receiveProtocol, send=$sendProtocol")
 
-        val specmaticContainer = GenericContainer(DockerImageName.parse("specmatic/specmatic-async"))
+        val specmaticContainer = GenericContainer(DockerImageName.parse("specmatic/enterprise"))
             .withCommand("test --overlay=overlay.yaml")
             .withImagePullPolicy(PullPolicy.alwaysPull())
             .withFileSystemBind(

@@ -24,7 +24,7 @@ class SpecmaticExecutor {
             throw new IllegalArgumentException("At least one argument is required to execute Specmatic");
         this.command = "Specmatic " + args.get(0);
         try {
-            List<String> cmd = new ArrayList<>(asList("java", "-jar", System.getProperty("user.home") + "/.specmatic/specmatic-async.jar"));
+            List<String> cmd = new ArrayList<>(asList("java", "-jar", System.getProperty("user.home") + "/.specmatic/specmatic.jar"));
             cmd.addAll(args);
             builder = new ProcessBuilder(cmd);
             builder.environment().putAll(env);
