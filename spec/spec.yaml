@@ -28,42 +28,42 @@ channels:
   NewOrderPlaced:
     address: "new-orders"
     servers:
-    - $ref: "#/servers/mqttServer"
+    - $ref: "#/servers/sqsServer"
     messages:
       placeOrder.message:
         $ref: "#/components/messages/OrderRequest"
   OrderInitiated:
     address: "wip-orders"
     servers:
-    - $ref: "#/servers/sqsServer"
+    - $ref: "#/servers/kafkaServer"
     messages:
       processOrder.message:
         $ref: "#/components/messages/Order"
   OrderCancellationRequested:
     address: "to-be-cancelled-orders"
     servers:
-    - $ref: "#/servers/mqttServer"
+    - $ref: "#/servers/sqsServer"
     messages:
       cancelOrder.message:
         $ref: "#/components/messages/CancelOrderRequest"
   OrderCancelled:
     address: "cancelled-orders"
     servers:
-    - $ref: "#/servers/sqsServer"
+    - $ref: "#/servers/kafkaServer"
     messages:
       processCancellation.message:
         $ref: "#/components/messages/CancellationReference"
   OrderAccepted:
     address: "accepted-orders"
     servers:
-    - $ref: "#/servers/sqsServer"
+    - $ref: "#/servers/kafkaServer"
     messages:
       orderAccepted.message:
         $ref: "#/components/messages/OrderAccepted"
   OrderDeliveryInitiated:
     address: "out-for-delivery-orders"
     servers:
-    - $ref: "#/servers/mqttServer"
+    - $ref: "#/servers/sqsServer"
     messages:
       orderDeliveryInitiation.message:
         $ref: "#/components/messages/OutForDelivery"

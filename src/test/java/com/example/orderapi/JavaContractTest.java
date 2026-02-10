@@ -27,8 +27,8 @@ import java.util.Map;
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT,
         properties = {
-                "receive.protocol=mqtt",
-                "send.protocol=sqs"
+                "receive.protocol=sqs",
+                "send.protocol=kafka"
         }
 )
 public class JavaContractTest {
