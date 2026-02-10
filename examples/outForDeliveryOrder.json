@@ -1,0 +1,32 @@
+{
+  "id": "order-out-for-delivery",
+  "name": "ORDER_OUT_FOR_DELIVERY",
+  "receive": {
+    "topic": "out-for-delivery-orders",
+    "payload": {
+      "orderId": 456,
+      "deliveryAddress": "1234 Elm Street, Springfield",
+      "deliveryDate": "2025-04-14"
+    }
+  },
+  "after": [
+    {
+      "type": "http",
+      "wait": "PT2S",
+      "http-request": {
+        "baseUrl": "http://localhost:9090",
+        "path": "/orders/456?status=SHIPPED",
+        "method": "GET"
+      },
+      "http-response": {
+        "status": 200,
+        "body": {
+          "id": "$match(exact: 456)",
+          "totalAmount": "$match(exact: 1000.0)",
+          "status": "$match(exact: SHIPPED)"
+        }
+      },
+      "timeout": "PT10S"
+    }
+  ]
+}

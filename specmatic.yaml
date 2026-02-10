@@ -17,3 +17,6 @@ contracts:
               adminCredentials:
                 username: admin
                 password: admin
+
+examples:
+  - examples

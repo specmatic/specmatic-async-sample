@@ -28,42 +28,42 @@ channels:
   NewOrderPlaced:
     address: "new-orders"
     servers:
-    - $ref: "#/servers/sqsServer"
+    - $ref: "#/servers/mqttServer"
     messages:
       placeOrder.message:
         $ref: "#/components/messages/OrderRequest"
   OrderInitiated:
     address: "wip-orders"
     servers:
-    - $ref: "#/servers/kafkaServer"
+    - $ref: "#/servers/sqsServer"
     messages:
       processOrder.message:
         $ref: "#/components/messages/Order"
   OrderCancellationRequested:
     address: "to-be-cancelled-orders"
     servers:
-    - $ref: "#/servers/sqsServer"
+    - $ref: "#/servers/mqttServer"
     messages:
       cancelOrder.message:
         $ref: "#/components/messages/CancelOrderRequest"
   OrderCancelled:
     address: "cancelled-orders"
     servers:
-    - $ref: "#/servers/kafkaServer"
+    - $ref: "#/servers/sqsServer"
     messages:
       processCancellation.message:
         $ref: "#/components/messages/CancellationReference"
   OrderAccepted:
     address: "accepted-orders"
     servers:
-    - $ref: "#/servers/kafkaServer"
+    - $ref: "#/servers/sqsServer"
     messages:
       orderAccepted.message:
         $ref: "#/components/messages/OrderAccepted"
   OrderDeliveryInitiated:
     address: "out-for-delivery-orders"
     servers:
-    - $ref: "#/servers/sqsServer"
+    - $ref: "#/servers/mqttServer"
     messages:
       orderDeliveryInitiation.message:
         $ref: "#/components/messages/OutForDelivery"
@@ -141,21 +141,6 @@ components:
               - "name"
               - "quantity"
               - "price"
-      examples:
-      - name: "NEW_ORDER"
-        headers:
-          orderCorrelationId: 12345
-        payload:
-          id: 10
-          orderItems:
-          - id: 1
-            name: "Macbook"
-            quantity: 1
-            price: 2000
-          - id: 2
-            name: "Iphone"
-            quantity: 1
-            price: 1000
     Order:
       name: "OrderToProcess"
       title: "An order that needs to be processed"
@@ -180,14 +165,6 @@ components:
             type: "number"
           status:
             $ref: "#/components/messages/OrderStatus"
-      examples:
-      - name: "NEW_ORDER"
-        headers:
-          orderCorrelationId: 12345
-        payload:
-          id: 10
-          totalAmount: 3000
-          status: "INITIATED"
     CancelOrderRequest:
       name: "CancelOrderRequest"
       title: "A cancel order request"
@@ -206,12 +183,6 @@ components:
         properties:
           id:
             type: "integer"
-      examples:
-      - name: "CANCEL_ORDER"
-        headers:
-          orderCorrelationId: 12345
-        payload:
-          id: 10
     CancellationReference:
       name: "CancellationReference"
       title: "A cancellation reference in response to a cancel order request"
@@ -233,13 +204,6 @@ components:
             type: "integer"
           status:
             $ref: "#/components/messages/OrderStatus"
-      examples:
-      - name: "CANCEL_ORDER"
-        headers:
-          orderCorrelationId: 12345
-        payload:
-          reference: 10
-          status: "CANCELLED"
     OrderAccepted:
       name: "OrderAccepted"
       title: "Order accepted by Warehouse"
@@ -260,12 +224,6 @@ components:
         - "id"
         - "status"
         - "timestamp"
-      examples:
-      - name: "ACCEPT_ORDER"
-        payload:
-          id: 123
-          status: "ACCEPTED"
-          timestamp: "2025-04-12T14:30:00Z"
     OutForDelivery:
       name: "OutForDelivery"
       title: "Order is out for delivery"
@@ -284,12 +242,6 @@ components:
           deliveryDate:
             type: "string"
             format: "date"
-      examples:
-      - name: "ORDER_OUT_FOR_DELIVERY"
-        payload:
-          orderId: 123
-          deliveryAddress: "1234 Elm Street, Springfield"
-          deliveryDate: "2025-04-14"
     OrderStatus:
       name: "OrderStatus"
       title: "Order status"

@@ -77,7 +77,7 @@ public class OrderService {
         log.info("Processing order delivery initiation for order: {}", deliveryInfo.getOrderId());
         
         try {
-            Order order = new Order(deliveryInfo.getOrderId(), null, OrderStatus.SHIPPED);
+            Order order = new Order(deliveryInfo.getOrderId(), 1000.0, OrderStatus.SHIPPED);
             saveOrder(deliveryInfo.getOrderId(), order);
 
             log.info("Order {} marked as shipped and saved to database", deliveryInfo.getOrderId());

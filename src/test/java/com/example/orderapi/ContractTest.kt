@@ -32,7 +32,6 @@ import java.time.Duration
 )
 class ContractTest {
     private val specPath = "./spec/spec.yaml"
-    private val overlayFilePath = "./src/test/resources/spec_overlay.yaml"
 
     companion object {
         private lateinit var infrastructure: ComposeContainer
@@ -72,27 +71,12 @@ class ContractTest {
         println("Running contract test for: receive=$receiveProtocol, send=$sendProtocol")
 
         val specmaticContainer = GenericContainer(DockerImageName.parse("specmatic/enterprise"))
-            .withCommand("test --overlay=overlay.yaml")
+            .withCommand("test")
             .withImagePullPolicy(PullPolicy.alwaysPull())
             .withFileSystemBind(
-                "./specmatic.yaml",
-                "/usr/src/app/specmatic.yaml",
+                ".",
+                "/usr/src/app",
                 BindMode.READ_ONLY
-            )
-            .withFileSystemBind(
-                "./spec",
-                "/usr/src/app/spec",
-                BindMode.READ_ONLY
-            )
-            .withFileSystemBind(
-                overlayFilePath,
-                "/usr/src/app/overlay.yaml",
-                BindMode.READ_ONLY
-            )
-            .withFileSystemBind(
-                "./build/reports/specmatic",
-                "/usr/src/app/build/reports/specmatic",
-                BindMode.READ_WRITE
             )
             .withNetworkMode("host")
             .withStartupTimeout(Duration.ofMinutes(5))
@@ -107,8 +91,8 @@ class ContractTest {
             val logs = specmaticContainer.logs
             assertThat(logs)
                 .withFailMessage("Specmatic tests failed. Check logs above for details.")
-                .doesNotContain("Passed: 0")
-                .contains("Failed: 0")
+                .doesNotContain("Result: FAILED")
+                .contains("Result: PASSED")
         } finally {
             specmaticContainer.stop()
         }

@@ -34,7 +34,6 @@ import java.util.Map;
 public class JavaContractTest {
 
     private final String specPath = "./spec/spec.yaml";
-    private final String overlayFilePath = "./src/test/resources/spec_overlay.yaml";
 
     private static ComposeContainer infrastructure;
 
@@ -83,8 +82,7 @@ public class JavaContractTest {
         Files.createDirectories(new File("./build/reports/specmatic").toPath());
 
         // Build Specmatic CLI args (absolute overlay path for safety)
-        File overlayAbs = new File(overlayFilePath).getAbsoluteFile();
-        var args = List.of("test", "--overlay=" + overlayAbs.getAbsolutePath());
+        var args = List.of("test");
 
         // Add env vars only if you need (e.g., proxies or AWS overrides for LocalStack)
         var env = Map.<String, String>of();
