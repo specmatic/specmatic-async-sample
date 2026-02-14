@@ -76,7 +76,7 @@ class ContractTest {
             .withFileSystemBind(
                 ".",
                 "/usr/src/app",
-                BindMode.READ_ONLY
+                BindMode.READ_WRITE
             )
             .withNetworkMode("host")
             .withStartupTimeout(Duration.ofMinutes(5))
