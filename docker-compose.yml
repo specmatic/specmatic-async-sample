@@ -126,3 +126,23 @@ services:
       
       echo 'RabbitMQ exchanges, queues, and bindings created successfully!';
       "
+
+  # IBM MQ (optional, enabled only when needed for runtime testing)
+  # Start with: docker compose --profile ibmmq up -d ibmmq
+  ibmmq:
+    image: ibmcom/mq:latest
+    platform: linux/amd64
+    profiles: ["ibmmq"]
+    environment:
+      LICENSE: accept
+      MQ_QMGR_NAME: QM1
+      MQ_DEV: "true"
+      MQ_ADMIN_PASSWORD: passw0rd
+      MQ_APP_PASSWORD: passw0rd
+      MQ_DISABLE_WEB_CONSOLE: "true"
+    ports:
+      # Map to 1415 on host to avoid conflicts with other local brokers/services
+      - "1415:1414"
+    volumes:
+      # Create application queues used by this sample at first queue manager creation
+      - ./ibmmq/config/20-specmatic-queues.mqsc:/etc/mqm/20-specmatic-queues.mqsc:ro

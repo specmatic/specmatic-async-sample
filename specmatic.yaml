@@ -37,3 +37,25 @@ components:
             adminCredentials:
               username: admin
               password: admin
+          # Reference only (pending Specmatic support for protocol: ibmmq)
+          # Example shape for future IBM MQ config:
+          # - host: tcp://localhost:1415
+          #   protocol: ibmmq
+          #   adminCredentials:
+          #     queueManager: QM1
+          #     channel: DEV.ADMIN.SVRCONN
+          #     connName: localhost(1415)
+          #     username: admin
+          #     password: passw0rd
+          #   producerProperties:
+          #     queueManager: QM1
+          #     channel: DEV.APP.SVRCONN
+          #     connName: localhost(1415)
+          #     username: app
+          #     password: passw0rd
+          #   consumerProperties:
+          #     queueManager: QM1
+          #     channel: DEV.APP.SVRCONN
+          #     connName: localhost(1415)
+          #     username: app
+          #     password: passw0rd

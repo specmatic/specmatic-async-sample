@@ -1,0 +1,7 @@
+* Queues required by the specmatic async sample application
+DEFINE QLOCAL('new-orders') REPLACE
+DEFINE QLOCAL('wip-orders') REPLACE
+DEFINE QLOCAL('to-be-cancelled-orders') REPLACE
+DEFINE QLOCAL('cancelled-orders') REPLACE
+DEFINE QLOCAL('accepted-orders') REPLACE
+DEFINE QLOCAL('out-for-delivery-orders') REPLACE

@@ -20,6 +20,10 @@ servers:
     host: "tcp://localhost:61616"
     protocol: "jms"
     description: "JMS server"
+  ibmmqServer:
+    host: "tcp://localhost:1415"
+    protocol: "ibmmq"
+    description: "IBM MQ server"
   amqpServer:
     host: "amqp://localhost:5673"
     protocol: "amqp"
@@ -28,42 +32,42 @@ channels:
   NewOrderPlaced:
     address: "new-orders"
     servers:
-    - $ref: "#/servers/sqsServer"
+    - $ref: "#/servers/ibmmqServer"
     messages:
       placeOrder.message:
         $ref: "#/components/messages/OrderRequest"
   OrderInitiated:
     address: "wip-orders"
     servers:
-    - $ref: "#/servers/kafkaServer"
+    - $ref: "#/servers/ibmmqServer"
     messages:
       processOrder.message:
         $ref: "#/components/messages/Order"
   OrderCancellationRequested:
     address: "to-be-cancelled-orders"
     servers:
-    - $ref: "#/servers/sqsServer"
+    - $ref: "#/servers/ibmmqServer"
     messages:
       cancelOrder.message:
         $ref: "#/components/messages/CancelOrderRequest"
   OrderCancelled:
     address: "cancelled-orders"
     servers:
-    - $ref: "#/servers/kafkaServer"
+    - $ref: "#/servers/ibmmqServer"
     messages:
       processCancellation.message:
         $ref: "#/components/messages/CancellationReference"
   OrderAccepted:
     address: "accepted-orders"
     servers:
-    - $ref: "#/servers/kafkaServer"
+    - $ref: "#/servers/ibmmqServer"
     messages:
       orderAccepted.message:
         $ref: "#/components/messages/OrderAccepted"
   OrderDeliveryInitiated:
     address: "out-for-delivery-orders"
     servers:
-    - $ref: "#/servers/sqsServer"
+    - $ref: "#/servers/ibmmqServer"
     messages:
       orderDeliveryInitiation.message:
         $ref: "#/components/messages/OutForDelivery"
