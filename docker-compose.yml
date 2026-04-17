@@ -24,7 +24,7 @@ services:
 
   # LocalStack for AWS SQS
   localstack:
-    image: localstack/localstack:latest
+    image: localstack/localstack:4.13
     network_mode: host
     environment:
       SERVICES: sqs
@@ -33,7 +33,7 @@ services:
       - "./localstack-data:/var/lib/localstack"
 
   localstack-init:
-    image: localstack/localstack:latest
+    image: localstack/localstack:4.13
     network_mode: host
     depends_on:
       - localstack
