@@ -1,14 +1,36 @@
 
 name: Java CI with Gradle
 
+run-name: ${{ inputs.orchestrator_run_suffix && format('Java CI with Gradle - {0}', inputs.orchestrator_run_suffix) || github.workflow }}
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
+  workflow_dispatch:
+    inputs:
+      enterprise_version:
+        description: Specmatic Enterprise version under test
+        required: false
+        type: string
+
+      enterprise_artifact_url:
+        description: Specmatic Enterprise jar/artifact URL under test
+        required: false
+        type: string
+
+      orchestrator_run_suffix:
+        description: Test orchestrator run suffix
+        required: false
+        type: string
+
 jobs:
   build:
+
+    env:
+      ENTERPRISE_VERSION: ${{ inputs.enterprise_version }}
+      ENTERPRISE_ARTIFACT_URL: ${{ inputs.enterprise_artifact_url }}
 
     runs-on: ubuntu-latest
     permissions:
@@ -22,13 +44,44 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Add orchestrator context to summary
+        if: ${{ inputs.orchestrator_run_suffix != '' }}
+        run: |
+          echo "### Orchestrator" >> "$GITHUB_STEP_SUMMARY"
+          echo "Run: ${{ inputs.orchestrator_run_suffix }}" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda
 
-      - name: Run tests
+      - name: Prepare Specmatic Enterprise artifact
+        if: ${{ inputs.enterprise_artifact_url != '' && inputs.enterprise_version != '' }}
+        shell: bash
         run: |
+          set -euo pipefail
+
+          mkdir -p ~/.specmatic
+
+          curl -L --fail --retry 3 --retry-delay 2 \
+            "${ENTERPRISE_ARTIFACT_URL}" \
+            -o ~/.specmatic/specmatic-enterprise.jar
+
+          mvn install:install-file \
+            -Dfile="$HOME/.specmatic/specmatic-enterprise.jar" \
+            -DgroupId=io.specmatic.enterprise \
+            -DartifactId=executable \
+            -Dversion="${ENTERPRISE_VERSION}" \
+            -Dpackaging=jar \
+            -DgeneratePom=true
+
+          echo "Installed Enterprise artifact into local Maven"
+
+      - name: Run tests
+        shell: bash
+        run: |
+          set -euo pipefail
+
           protocols=(kafka sqs mqtt jms amqp)
-          
+
           for receive in "${protocols[@]}"; do
             for send in "${protocols[@]}"; do
               echo "=============================================="
@@ -38,6 +91,8 @@ jobs:
               ./gradlew test --tests "**.ContractTest" \
                 -Dreceive.protocol=$receive \
                 -Dsend.protocol=$send \
+                ${ENTERPRISE_VERSION:+-PspecmaticEnterpriseVersion=${ENTERPRISE_VERSION}} \
+                ${ENTERPRISE_VERSION:+-PenterpriseVersion=${ENTERPRISE_VERSION}} \
                 --no-daemon --rerun-tasks
             done
           done
