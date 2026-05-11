@@ -94,5 +94,7 @@ jobs:
                 ${ENTERPRISE_VERSION:+-PspecmaticEnterpriseVersion=${ENTERPRISE_VERSION}} \
                 ${ENTERPRISE_VERSION:+-PenterpriseVersion=${ENTERPRISE_VERSION}} \
                 --no-daemon --rerun-tasks
+
+              sleep 5
             done
           done
