@@ -60,8 +60,12 @@ jobs:
           set -euo pipefail
 
           mkdir -p ~/.specmatic
+          
+          echo "Downloading Enterprise artifact from:"
+          echo "${ENTERPRISE_ARTIFACT_URL}"
+          echo "Retry configuration: 3 retries with 15 second delay"
 
-          curl -L --fail --retry 3 --retry-delay 2 \
+          curl -L --fail --retry 3 --retry-delay 15 \
             "${ENTERPRISE_ARTIFACT_URL}" \
             -o ~/.specmatic/specmatic-enterprise.jar
 
