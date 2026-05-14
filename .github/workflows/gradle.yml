@@ -33,6 +33,10 @@ jobs:
       ENTERPRISE_ARTIFACT_URL: ${{ inputs.enterprise_artifact_url }}
 
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        receive: [kafka, sqs, mqtt, jms, amqp]
     permissions:
       contents: read
 
@@ -49,6 +53,12 @@ jobs:
         run: |
           echo "### Orchestrator" >> "$GITHUB_STEP_SUMMARY"
           echo "Run: ${{ inputs.orchestrator_run_suffix }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Receive protocol: ${{ matrix.receive }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Add matrix context to summary
+        run: |
+          echo "### Protocol Matrix" >> "$GITHUB_STEP_SUMMARY"
+          echo "Receive protocol: ${{ matrix.receive }}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda
@@ -86,19 +96,17 @@ jobs:
 
           protocols=(kafka sqs mqtt jms amqp)
 
-          for receive in "${protocols[@]}"; do
-            for send in "${protocols[@]}"; do
-              echo "=============================================="
-              echo "Running tests: receive=$receive send=$send"
-              echo "=============================================="
+          for send in "${protocols[@]}"; do
+            echo "=============================================="
+            echo "Running tests: receive=${{ matrix.receive }} send=$send"
+            echo "=============================================="
 
-              ./gradlew test --tests "**.ContractTest" \
-                -Dreceive.protocol=$receive \
-                -Dsend.protocol=$send \
-                ${ENTERPRISE_VERSION:+-PspecmaticEnterpriseVersion=${ENTERPRISE_VERSION}} \
-                ${ENTERPRISE_VERSION:+-PenterpriseVersion=${ENTERPRISE_VERSION}} \
-                --no-daemon --rerun-tasks
+            ./gradlew test --tests "**.ContractTest" \
+              -Dreceive.protocol=${{ matrix.receive }} \
+              -Dsend.protocol=$send \
+              ${ENTERPRISE_VERSION:+-PspecmaticEnterpriseVersion=${ENTERPRISE_VERSION}} \
+              ${ENTERPRISE_VERSION:+-PenterpriseVersion=${ENTERPRISE_VERSION}} \
+              --no-daemon --rerun-tasks
 
-              sleep 5
-            done
+            sleep 5
           done
