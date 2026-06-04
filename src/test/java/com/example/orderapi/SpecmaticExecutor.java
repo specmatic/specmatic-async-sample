@@ -1,6 +1,7 @@
 package com.example.orderapi;
 
 import java.io.InputStream;
+import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,6 +21,10 @@ class SpecmaticExecutor {
     private final StringBuffer logs = new StringBuffer(8192);
 
     SpecmaticExecutor(List<String> args, Map<String, String> env) {
+        this(args, env, null);
+    }
+
+    SpecmaticExecutor(List<String> args, Map<String, String> env, File workingDirectory) {
         if (args.isEmpty())
             throw new IllegalArgumentException("At least one argument is required to execute Specmatic");
         this.command = "Specmatic " + args.get(0);
@@ -28,6 +33,9 @@ class SpecmaticExecutor {
             cmd.addAll(args);
             builder = new ProcessBuilder(cmd);
             builder.environment().putAll(env);
+            if (workingDirectory != null) {
+                builder.directory(workingDirectory);
+            }
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

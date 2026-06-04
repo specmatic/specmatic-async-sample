@@ -67,6 +67,7 @@ jobs:
       CTRF_REPORT_PATH: './build/reports/specmatic/async/test/ctrf/*.json'
       ENTERPRISE_VERSION: ${{ inputs.enterprise_version }}
       ENTERPRISE_ARTIFACT_URL: ${{ inputs.enterprise_artifact_url }}
+      SPECMATIC_DOCKER_IMAGE: specmatic/enterprise:latest
 
     runs-on: ubuntu-latest
     strategy:
@@ -98,6 +99,9 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda
+
+      - name: Pull latest Specmatic Docker image
+        run: docker pull "${SPECMATIC_DOCKER_IMAGE}"
 
       - name: Download Specmatic Enterprise artifact
         if: ${{ inputs.enterprise_artifact_url != '' && inputs.enterprise_version != '' }}
@@ -140,8 +144,6 @@ jobs:
               ${ENTERPRISE_VERSION:+-PspecmaticEnterpriseVersion=${ENTERPRISE_VERSION}} \
               ${ENTERPRISE_VERSION:+-PenterpriseVersion=${ENTERPRISE_VERSION}} \
               --no-daemon --rerun-tasks
-
-            sleep 5
           done
 
       - name: Upload CTRF Report

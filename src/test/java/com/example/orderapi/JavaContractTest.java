@@ -20,9 +20,9 @@ import org.testcontainers.containers.ComposeContainer;
 
 import java.io.File;
 import java.nio.file.Files;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.nio.file.Path;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
@@ -35,8 +35,6 @@ import java.util.Map;
 )
 public class JavaContractTest {
 
-    private final String specPath = "./spec/spec.yaml";
-
     private static ComposeContainer infrastructure;
 
     static {
@@ -44,17 +42,9 @@ public class JavaContractTest {
     }
 
     private static void startInfra() {
-        try {
-            System.out.println("Starting infrastructure via docker-compose...");
-            infrastructure = new ComposeContainer(new File("docker-compose.yml"));
-            infrastructure.start();
-            System.out.println("Infrastructure started via docker-compose");
-            // retain original sleep (consider replacing with Wait strategies)
-            Thread.sleep(20_000);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("Interrupted while waiting for infrastructure start", e);
-        }
+        System.out.println("Starting infrastructure via docker-compose...");
+        infrastructure = AsyncContractTestSupport.startInfrastructure();
+        System.out.println("Infrastructure started via docker-compose");
     }
 
     @Value("${receive.protocol}")
@@ -66,7 +56,6 @@ public class JavaContractTest {
     @BeforeAll
     void setup() throws Exception {
         System.out.printf("Test setup: receive=%s, send=%s%n", receiveProtocol, sendProtocol);
-        updateProtocolsInSpec(receiveProtocol, sendProtocol);
     }
 
     @AfterAll
@@ -82,6 +71,7 @@ public class JavaContractTest {
 
         // Ensure reports directory exists (as earlier)
         Files.createDirectories(new File("./build/reports/specmatic").toPath());
+        Path workspace = AsyncContractTestSupport.createSpecmaticWorkspace(receiveProtocol, sendProtocol);
 
         // Build Specmatic CLI args (absolute overlay path for safety)
         var args = List.of("test");
@@ -90,48 +80,15 @@ public class JavaContractTest {
         var env = Map.<String, String>of();
 
         // 🔁 Use your executor instead of inline ProcessBuilder
-        SpecmaticExecutor exec = new SpecmaticExecutor(args, env);
+        SpecmaticExecutor exec = new SpecmaticExecutor(args, env, workspace.toFile());
 
         try {
             exec.start(); // starts the process and streams logs
             exec.verifySuccessfulExecutionWithNoFailures(); // asserts zero failures and process exit code == 0
         } finally {
             exec.stop(); // graceful shutdown of the process and log threads
+            AsyncContractTestSupport.syncReports(workspace);
+            AsyncContractTestSupport.deleteWorkspace(workspace);
         }
-    }
-
-    private void updateProtocolsInSpec(String receiveProtocol, String sendProtocol) throws Exception {
-        System.out.println("Modifying spec.yaml:");
-        System.out.printf("  - Receive channels will use: %sServer%n", receiveProtocol);
-        System.out.printf("  - Send channels will use: %sServer%n", sendProtocol);
-
-        File file = new File(specPath);
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
-        mapper.registerModule(new KotlinModule());
-        JsonNode root = mapper.readTree(file);
-
-        Configuration configuration = Configuration.builder()
-                .jsonProvider(new JacksonJsonNodeJsonProvider())
-                .mappingProvider(new JacksonMappingProvider())
-                .build();
-
-        DocumentContext context = JsonPath.using(configuration).parse(root);
-
-        List<String> receiveChannels = Arrays.asList("NewOrderPlaced", "OrderCancellationRequested", "OrderDeliveryInitiated");
-        List<String> sendChannels = Arrays.asList("OrderInitiated", "OrderCancelled", "OrderAccepted");
-
-        // JSONPath: bracket-notation for "$ref" and escape $ in Java string literal
-        for (String channel : receiveChannels) {
-            String path = String.format("$.channels.%s.servers[0]['\\$ref']", channel);
-            context.set(path, String.format("#/servers/%sServer", receiveProtocol));
-        }
-        for (String channel : sendChannels) {
-            String path = String.format("$.channels.%s.servers[0]['\\$ref']", channel);
-            context.set(path, String.format("#/servers/%sServer", sendProtocol));
-        }
-
-        // Write back YAML
-        JsonNode updated = context.json();
-        mapper.writeValue(file, updated);
     }
 }
