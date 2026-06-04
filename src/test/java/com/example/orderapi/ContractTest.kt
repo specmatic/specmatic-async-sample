@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.test.annotation.DirtiesContext
 import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.ComposeContainer
 import org.testcontainers.containers.GenericContainer
@@ -22,6 +23,7 @@ import java.io.File
 import java.time.Duration
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT,
     // Note - Update these to try out different protocol combinations
