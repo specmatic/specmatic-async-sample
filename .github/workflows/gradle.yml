@@ -31,6 +31,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: write
+    outputs:
+      artifact-id: ${{ steps.upload-enterprise-artifact.outputs.artifact-id }}
     steps:
       - name: Prepare Specmatic Enterprise artifact
         shell: bash
@@ -52,6 +55,7 @@ jobs:
             -o "$HOME/.specmatic/specmatic-enterprise.jar"
 
       - name: Upload Specmatic Enterprise artifact
+        id: upload-enterprise-artifact
         uses: actions/upload-artifact@v4
         with:
           name: specmatic-enterprise-jar
@@ -182,3 +186,48 @@ jobs:
         if: always()
         with:
           report-path: ${{ env.CTRF_REPORT_PATH }}
+
+  cleanup-enterprise-artifact:
+    needs: [prepare-enterprise-artifact, build]
+    if: ${{ always() && needs.prepare-enterprise-artifact.result == 'success' && needs.prepare-enterprise-artifact.outputs.artifact-id != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Delete Specmatic Enterprise artifact
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const artifactId = Number('${{ needs.prepare-enterprise-artifact.outputs.artifact-id }}');
+
+            if (!artifactId) {
+              core.info('No enterprise artifact id found, skipping delete.');
+              return;
+            }
+
+            for (let attempt = 1; attempt <= 3; attempt++) {
+              try {
+                await github.rest.actions.deleteArtifact({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  artifact_id: artifactId,
+                });
+
+                core.info(`Deleted workflow artifact ${artifactId}.`);
+                return;
+              } catch (error) {
+                if (error.status === 404) {
+                  core.info(`Artifact ${artifactId} already gone.`);
+                  return;
+                }
+
+                const retryable = error.status === 429 || (error.status >= 500 && error.status < 600);
+
+                if (attempt === 3 || !retryable) {
+                  throw error;
+                }
+
+                core.info(`Delete failed on attempt ${attempt}. Retrying...`);
+                await new Promise((resolve) => setTimeout(resolve, attempt * 5000));
+              }
+            }
