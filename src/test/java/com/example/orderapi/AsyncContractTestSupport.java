@@ -2,6 +2,8 @@ package com.example.orderapi;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.module.kotlin.KotlinModule;
 import com.jayway.jsonpath.Configuration;
@@ -9,35 +11,13 @@ import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.spi.json.JacksonJsonNodeJsonProvider;
 import com.jayway.jsonpath.spi.mapper.JacksonMappingProvider;
-import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.clients.admin.AdminClientConfig;
-import org.eclipse.paho.client.mqttv3.MqttClient;
-import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
-import org.testcontainers.containers.ComposeContainer;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.sqs.SqsClient;
-import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
 
-import java.io.File;
 import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.InetSocketAddress;
-import java.net.Socket;
-import java.net.URI;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Properties;
-import java.util.UUID;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 final class AsyncContractTestSupport {
@@ -53,27 +33,12 @@ final class AsyncContractTestSupport {
             "OrderCancelled",
             "OrderAccepted"
     );
-    private static final List<String> QUEUES = Arrays.asList(
-            "new-orders",
-            "wip-orders",
-            "to-be-cancelled-orders",
-            "cancelled-orders",
-            "accepted-orders",
-            "out-for-delivery-orders"
-    );
 
     private AsyncContractTestSupport() {
     }
 
-    static ComposeContainer startInfrastructure() {
-        ComposeContainer infrastructure = new ComposeContainer(new File("docker-compose.yml"));
-        infrastructure.start();
-        waitForInfrastructure();
-        return infrastructure;
-    }
-
-    static Path createSpecmaticWorkspace(String receiveProtocol, String sendProtocol) throws IOException {
-        Path workspace = BUILD_DIR.resolve("tmp/specmatic-workspaces/" + receiveProtocol + "-" + sendProtocol + "-" + UUID.randomUUID());
+    static Path createSpecmaticWorkspace(ProtocolTestEnvironment environment, String appBaseUrl, boolean containerizedSpecmatic) throws IOException {
+        Path workspace = BUILD_DIR.resolve("tmp/specmatic-workspaces/" + environment.receiveProtocol() + "-" + environment.sendProtocol() + "-" + environment.runId());
         Files.createDirectories(workspace.resolve("spec"));
         Files.createDirectories(workspace.resolve("examples"));
 
@@ -81,7 +46,10 @@ final class AsyncContractTestSupport {
         Files.copy(REPO_ROOT.resolve("specmatic.yaml"), workspace.resolve("specmatic.yaml"), StandardCopyOption.REPLACE_EXISTING);
         Files.copy(REPO_ROOT.resolve("spec/spec.yaml"), workspace.resolve("spec/spec.yaml"), StandardCopyOption.REPLACE_EXISTING);
 
-        updateProtocolsInSpec(workspace.resolve("spec/spec.yaml"), receiveProtocol, sendProtocol);
+        updateProtocolsInSpec(workspace.resolve("spec/spec.yaml"), environment, containerizedSpecmatic);
+        updateRunOptions(workspace.resolve("specmatic.yaml"), environment, containerizedSpecmatic);
+        updateExampleBaseUrls(workspace.resolve("examples"), appBaseUrl);
+
         return workspace;
     }
 
@@ -103,111 +71,7 @@ final class AsyncContractTestSupport {
         }
     }
 
-    private static void waitForInfrastructure() {
-        waitFor("Kafka", Duration.ofMinutes(2), AsyncContractTestSupport::isKafkaReady);
-        waitFor("LocalStack TCP", Duration.ofMinutes(2), () -> isTcpReady("localhost", 4566));
-        waitFor("LocalStack SQS queues", Duration.ofMinutes(2), AsyncContractTestSupport::areSqsQueuesReady);
-        waitFor("Mosquitto", Duration.ofMinutes(2), AsyncContractTestSupport::isMqttReady);
-        waitFor("Artemis", Duration.ofMinutes(2), () -> isTcpReady("localhost", 61616));
-        waitFor("RabbitMQ management", Duration.ofMinutes(2), AsyncContractTestSupport::isRabbitManagementReady);
-        waitFor("RabbitMQ AMQP", Duration.ofMinutes(2), () -> isTcpReady("localhost", 5673));
-    }
-
-    private static boolean isKafkaReady() {
-        Properties properties = new Properties();
-        properties.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
-        properties.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, "5000");
-        properties.put(AdminClientConfig.DEFAULT_API_TIMEOUT_MS_CONFIG, "5000");
-
-        try (AdminClient adminClient = AdminClient.create(properties)) {
-            adminClient.describeCluster().nodes().get(5, TimeUnit.SECONDS);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    private static boolean areSqsQueuesReady() {
-        try (SqsClient sqsClient = SqsClient.builder()
-                .region(Region.US_EAST_1)
-                .endpointOverride(URI.create("http://localhost:4566"))
-                .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("test", "test")))
-                .build()) {
-            for (String queue : QUEUES) {
-                sqsClient.getQueueUrl(GetQueueUrlRequest.builder().queueName(queue).build());
-            }
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    private static boolean isMqttReady() {
-        String clientId = "specmatic-readiness-" + UUID.randomUUID();
-        try {
-            MqttClient client = new MqttClient("tcp://localhost:1884", clientId);
-            MqttConnectOptions options = new MqttConnectOptions();
-            options.setConnectionTimeout(5);
-            options.setAutomaticReconnect(false);
-            options.setCleanSession(true);
-            client.connect(options);
-            client.disconnect();
-            client.close();
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    private static boolean isRabbitManagementReady() {
-        try {
-            HttpURLConnection connection = (HttpURLConnection) new URL("http://localhost:15672/api/overview").openConnection();
-            connection.setConnectTimeout(5000);
-            connection.setReadTimeout(5000);
-            connection.setRequestProperty("Authorization", "Basic Z3Vlc3Q6Z3Vlc3Q=");
-            connection.setRequestMethod("GET");
-            int status = connection.getResponseCode();
-            connection.disconnect();
-            return status == 200;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    private static boolean isTcpReady(String host, int port) {
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(host, port), 5000);
-            return true;
-        } catch (IOException e) {
-            return false;
-        }
-    }
-
-    private static void waitFor(String label, Duration timeout, Supplier<Boolean> check) {
-        Instant deadline = Instant.now().plus(timeout);
-        Throwable lastError = null;
-
-        while (Instant.now().isBefore(deadline)) {
-            try {
-                if (Boolean.TRUE.equals(check.get())) {
-                    return;
-                }
-            } catch (Throwable t) {
-                lastError = t;
-            }
-
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException("Interrupted while waiting for " + label, e);
-            }
-        }
-
-        throw new RuntimeException("Timed out waiting for " + label, lastError);
-    }
-
-    private static void updateProtocolsInSpec(Path specPath, String receiveProtocol, String sendProtocol) throws IOException {
+    private static void updateProtocolsInSpec(Path specPath, ProtocolTestEnvironment environment, boolean containerizedSpecmatic) throws IOException {
         ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
         mapper.registerModule(new KotlinModule());
         JsonNode root = mapper.readTree(specPath.toFile());
@@ -221,15 +85,64 @@ final class AsyncContractTestSupport {
 
         for (String channel : RECEIVE_CHANNELS) {
             String path = String.format("$.channels.%s.servers[0]['\\$ref']", channel);
-            context.set(path, String.format("#/servers/%sServer", receiveProtocol));
+            context.set(path, String.format("#/servers/%sServer", environment.receiveProtocol()));
         }
 
         for (String channel : SEND_CHANNELS) {
             String path = String.format("$.channels.%s.servers[0]['\\$ref']", channel);
-            context.set(path, String.format("#/servers/%sServer", sendProtocol));
+            context.set(path, String.format("#/servers/%sServer", environment.sendProtocol()));
         }
 
+        context.set("$.servers.kafkaServer.host", containerizedSpecmatic ? environment.specKafkaHostPort() : environment.kafkaHostPort());
+        context.set("$.servers.sqsServer.host", containerizedSpecmatic ? environment.specSqsHost() : environment.sqsHost());
+        context.set("$.servers.mqttServer.host", containerizedSpecmatic ? environment.specMqttBrokerUrl() : environment.mqttBrokerUrl());
+        context.set("$.servers.jmsServer.host", containerizedSpecmatic ? environment.specJmsBrokerUrl() : environment.jmsBrokerUrl());
+        context.set("$.servers.amqpServer.host", containerizedSpecmatic ? environment.specAmqpBrokerUrl() : environment.amqpBrokerUrl());
+
         mapper.writeValue(specPath.toFile(), context.json());
+    }
+
+    private static void updateRunOptions(Path configPath, ProtocolTestEnvironment environment, boolean containerizedSpecmatic) throws IOException {
+        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        mapper.registerModule(new KotlinModule());
+        JsonNode root = mapper.readTree(configPath.toFile());
+
+        Configuration configuration = Configuration.builder()
+                .jsonProvider(new JacksonJsonNodeJsonProvider())
+                .mappingProvider(new JacksonMappingProvider())
+                .build();
+
+        DocumentContext context = JsonPath.using(configuration).parse(root);
+        context.set("$.components.runOptions.orderAsyncServiceTest.asyncapi.servers[0].host", containerizedSpecmatic ? environment.specSqsHost() : environment.sqsHost());
+        context.set("$.components.runOptions.orderAsyncServiceTest.asyncapi.servers[1].host", containerizedSpecmatic ? environment.specJmsBrokerUrl() : environment.jmsBrokerUrl());
+
+        mapper.writeValue(configPath.toFile(), context.json());
+    }
+
+    private static void updateExampleBaseUrls(Path examplesDir, String appBaseUrl) throws IOException {
+        ObjectMapper mapper = new ObjectMapper();
+        try (Stream<Path> stream = Files.walk(examplesDir)) {
+            for (Path path : stream.filter(candidate -> candidate.toString().endsWith(".json")).toList()) {
+                JsonNode root = mapper.readTree(path.toFile());
+                updateFixtureBaseUrls(root, "before", appBaseUrl);
+                updateFixtureBaseUrls(root, "after", appBaseUrl);
+                mapper.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), root);
+            }
+        }
+    }
+
+    private static void updateFixtureBaseUrls(JsonNode root, String sectionName, String appBaseUrl) {
+        JsonNode section = root.get(sectionName);
+        if (!(section instanceof ArrayNode fixtures)) {
+            return;
+        }
+
+        for (JsonNode fixture : fixtures) {
+            JsonNode request = fixture.get("http-request");
+            if (request instanceof ObjectNode requestObject) {
+                requestObject.put("baseUrl", appBaseUrl);
+            }
+        }
     }
 
     private static void copyDirectory(Path source, Path target) throws IOException {

@@ -68,12 +68,14 @@ jobs:
       ENTERPRISE_VERSION: ${{ inputs.enterprise_version }}
       ENTERPRISE_ARTIFACT_URL: ${{ inputs.enterprise_artifact_url }}
       SPECMATIC_DOCKER_IMAGE: specmatic/enterprise:latest
+      APP_RUNTIME_DOCKER_IMAGE: eclipse-temurin:17-jre
 
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         receive: [kafka, sqs, mqtt, jms, amqp]
+        send: [kafka, sqs, mqtt, jms, amqp]
     permissions:
       contents: read
 
@@ -91,17 +93,40 @@ jobs:
           echo "### Orchestrator" >> "$GITHUB_STEP_SUMMARY"
           echo "Run: ${{ inputs.orchestrator_run_suffix }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Receive protocol: ${{ matrix.receive }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Send protocol: ${{ matrix.send }}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Add matrix context to summary
         run: |
           echo "### Protocol Matrix" >> "$GITHUB_STEP_SUMMARY"
           echo "Receive protocol: ${{ matrix.receive }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Send protocol: ${{ matrix.send }}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda
 
-      - name: Pull latest Specmatic Docker image
-        run: docker pull "${SPECMATIC_DOCKER_IMAGE}"
+      - name: Pull Docker images
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          retries=3
+          delay=10
+
+          for image in "${SPECMATIC_DOCKER_IMAGE}" "${APP_RUNTIME_DOCKER_IMAGE}"; do
+            for attempt in $(seq 1 "$retries"); do
+              if docker pull "$image"; then
+                break
+              fi
+
+              if [ "$attempt" -eq "$retries" ]; then
+                echo "Failed to pull $image after ${retries} attempts"
+                exit 1
+              fi
+
+              echo "Retrying docker pull for $image in ${delay}s (attempt ${attempt}/${retries})"
+              sleep "$delay"
+            done
+          done
 
       - name: Download Specmatic Enterprise artifact
         if: ${{ inputs.enterprise_artifact_url != '' && inputs.enterprise_version != '' }}
@@ -131,26 +156,23 @@ jobs:
         run: |
           set -euo pipefail
 
-          protocols=(kafka sqs mqtt jms amqp)
+          echo "=============================================="
+          echo "Running tests: receive=${{ matrix.receive }} send=${{ matrix.send }}"
+          echo "=============================================="
 
-          for send in "${protocols[@]}"; do
-            echo "=============================================="
-            echo "Running tests: receive=${{ matrix.receive }} send=$send"
-            echo "=============================================="
-
-            ./gradlew test --tests "**.ContractTest" \
-              -Dreceive.protocol=${{ matrix.receive }} \
-              -Dsend.protocol=$send \
-              ${ENTERPRISE_VERSION:+-PspecmaticEnterpriseVersion=${ENTERPRISE_VERSION}} \
-              ${ENTERPRISE_VERSION:+-PenterpriseVersion=${ENTERPRISE_VERSION}} \
-              --no-daemon --rerun-tasks
-          done
+          ./gradlew test --tests "**.ContractTest" \
+            -Dreceive.protocol=${{ matrix.receive }} \
+            -Dsend.protocol=${{ matrix.send }} \
+            -DspecmaticDockerImage=${SPECMATIC_DOCKER_IMAGE} \
+            ${ENTERPRISE_VERSION:+-PspecmaticEnterpriseVersion=${ENTERPRISE_VERSION}} \
+            ${ENTERPRISE_VERSION:+-PenterpriseVersion=${ENTERPRISE_VERSION}} \
+            --no-daemon --rerun-tasks
 
       - name: Upload CTRF Report
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ctrf-report-${{ matrix.receive }}
+          name: ctrf-report-${{ matrix.receive }}-${{ matrix.send }}
           path: ${{ env.CTRF_REPORT_PATH }}
           if-no-files-found: warn
           retention-days: 5
