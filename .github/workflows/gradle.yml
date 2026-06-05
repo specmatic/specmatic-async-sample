@@ -44,11 +44,11 @@ jobs:
 
           echo "Downloading Enterprise artifact from:"
           echo "${{ inputs.enterprise_artifact_url }}"
-          echo "Retry configuration: 5 retries with 15 second delay"
+          echo "Retry configuration: 10 retries with 30 second delay"
 
           curl --http1.1 -L --fail \
-            --retry 5 \
-            --retry-delay 15 \
+            --retry 10 \
+            --retry-delay 30 \
             --retry-all-errors \
             --continue-at - \
             "${{ inputs.enterprise_artifact_url }}" \
