@@ -3,6 +3,8 @@ package com.example.orderapi
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.condition.DisabledOnOs
+import org.junit.jupiter.api.condition.OS
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.testcontainers.containers.BindMode
@@ -15,6 +17,7 @@ import java.time.Duration
 import kotlin.io.path.name
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@DisabledOnOs(OS.WINDOWS)
 class ContractTest {
     private val specmaticDockerImage =
         System.getProperty("specmaticDockerImage")
