@@ -19,10 +19,7 @@ import kotlin.io.path.name
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @DisabledOnOs(OS.WINDOWS)
 class ContractTest {
-    private val specmaticDockerImage =
-        System.getProperty("specmaticDockerImage")
-            ?: System.getenv("SPECMATIC_DOCKER_IMAGE")
-            ?: "specmatic/enterprise:latest"
+    private val specmaticDockerImage = resolvedSpecmaticDockerImage()
 
     private val appDockerImage = DockerImageName.parse("eclipse-temurin:17-jre")
     private val environment = ProtocolTestEnvironment.startFromSystemProperties()
@@ -115,4 +112,22 @@ class ContractTest {
                 .findFirst()
                 .orElseThrow { IllegalStateException("Executable boot jar not found in build/libs") }
         }
+
+    private fun resolvedSpecmaticDockerImage(): String {
+        val systemProperty = System.getProperty("specmaticDockerImage")
+        if (!systemProperty.isNullOrBlank()) {
+            return systemProperty
+        }
+
+        val environmentImage = System.getenv("SPECMATIC_DOCKER_IMAGE")
+        if (!environmentImage.isNullOrBlank()) {
+            return environmentImage
+        }
+
+        return if (System.getenv("ENTERPRISE_ARTIFACT_URL").isNullOrBlank()) {
+            "specmatic/enterprise:latest"
+        } else {
+            "specmatic/enterprise-snapshot:latest"
+        }
+    }
 }
