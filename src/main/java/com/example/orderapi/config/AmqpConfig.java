@@ -32,32 +32,32 @@ public class AmqpConfig {
 
     @Bean
     public Queue newOrdersQueue() {
-        return new Queue(newOrdersChannel, false);
+        return new Queue(newOrdersChannel, true);
     }
 
     @Bean
     public Queue wipOrdersQueue() {
-        return new Queue(wipOrdersChannel, false);
+        return new Queue(wipOrdersChannel, true);
     }
 
     @Bean
     public Queue cancelOrdersQueue() {
-        return new Queue(cancelOrdersChannel, false);
+        return new Queue(cancelOrdersChannel, true);
     }
 
     @Bean
     public Queue cancelledOrdersQueue() {
-        return new Queue(cancelledOrdersChannel, false);
+        return new Queue(cancelledOrdersChannel, true);
     }
 
     @Bean
     public Queue acceptedOrdersQueue() {
-        return new Queue(acceptedOrdersChannel, false);
+        return new Queue(acceptedOrdersChannel, true);
     }
 
     @Bean
     public Queue deliveryOrdersQueue() {
-        return new Queue(deliveryOrdersChannel, false);
+        return new Queue(deliveryOrdersChannel, true);
     }
 
     @Bean
