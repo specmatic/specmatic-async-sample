@@ -16,7 +16,7 @@ on:
         type: string
 
       enterprise_artifact_url:
-        description: Specmatic Enterprise jar/artifact URL under test
+        description: Deprecated fat-jar artifact URL input; retained for workflow compatibility
         required: false
         type: string
 
@@ -26,52 +26,9 @@ on:
         type: string
 
 jobs:
-  prepare-enterprise-artifact:
-    if: ${{ inputs.enterprise_artifact_url != '' && inputs.enterprise_version != '' }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: write
-    outputs:
-      artifact-id: ${{ steps.upload-enterprise-artifact.outputs.artifact-id }}
-    steps:
-      - name: Prepare Specmatic Enterprise artifact
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          mkdir -p "$HOME/.specmatic"
-
-          url="${{ inputs.enterprise_artifact_url }}"
-          output_path="$HOME/.specmatic/specmatic-enterprise.jar"
-          echo "Downloading Enterprise artifact from:"
-          echo "$url"
-
-          initial_sleep=$(( RANDOM % 31 ))
-          echo "Initial jitter: ${initial_sleep}s"
-          sleep "$initial_sleep"
-
-          echo "Download attempt 1/1"
-          curl --http1.1 -L --fail --continue-at - "$url" -o "$output_path"
-          echo "Enterprise artifact downloaded successfully"
-
-      - name: Upload Specmatic Enterprise artifact
-        id: upload-enterprise-artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: specmatic-enterprise-jar
-          path: ~/.specmatic/specmatic-enterprise.jar
-          if-no-files-found: error
-          retention-days: 1
-
   build:
-    needs: [prepare-enterprise-artifact]
-    if: ${{ always() && (needs.prepare-enterprise-artifact.result == 'success' || needs.prepare-enterprise-artifact.result == 'skipped') }}
-
     env:
       CTRF_REPORT_PATH: './build/reports/specmatic/async/test/ctrf/*.json'
-      ENTERPRISE_VERSION: ${{ inputs.enterprise_version }}
-      ENTERPRISE_ARTIFACT_URL: ${{ inputs.enterprise_artifact_url }}
       SPECMATIC_DOCKER_IMAGE: specmatic/enterprise:latest
       APP_RUNTIME_DOCKER_IMAGE: eclipse-temurin:17-jre
 
@@ -92,11 +49,19 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Add orchestrator context to summary
+      - if: ${{ inputs.orchestrator_run_suffix != '' }}
+        uses: specmatic/specmatic-github-workflows/action-orchestrator-setup@main
+        with:
+          orchestrator-run-suffix: ${{ inputs.orchestrator_run_suffix }}
+          enterprise-version: ${{ inputs.enterprise_version }}
+          gradle-snapshot-init-script-path: ./gradle/specmatic-snapshots.init.gradle
+          docker-hub-username: ${{ vars.SPECMATIC_DOCKER_HUB_USERNAME }}
+          docker-hub-token: ${{ secrets.SPECMATIC_DOCKER_HUB_TOKEN }}
+          setup-snapshot-docker-image: 'true'
+
+      - name: Add orchestrator matrix context to summary
         if: ${{ inputs.orchestrator_run_suffix != '' }}
         run: |
-          echo "### Orchestrator" >> "$GITHUB_STEP_SUMMARY"
-          echo "Run: ${{ inputs.orchestrator_run_suffix }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Receive protocol: ${{ matrix.receive }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Send protocol: ${{ matrix.send }}" >> "$GITHUB_STEP_SUMMARY"
 
@@ -117,7 +82,13 @@ jobs:
           retries=3
           delay=10
 
-          for image in "${SPECMATIC_DOCKER_IMAGE}" "${APP_RUNTIME_DOCKER_IMAGE}"; do
+          images=("${APP_RUNTIME_DOCKER_IMAGE}")
+
+          if [ "${{ !(inputs.orchestrator_run_suffix != '' && endsWith(inputs.enterprise_version, '-SNAPSHOT')) }}" = "true" ]; then
+            images=("${SPECMATIC_DOCKER_IMAGE}" "${APP_RUNTIME_DOCKER_IMAGE}")
+          fi
+
+          for image in "${images[@]}"; do
             for attempt in $(seq 1 "$retries"); do
               if docker pull "$image"; then
                 break
@@ -132,32 +103,10 @@ jobs:
               sleep "$delay"
             done
           done
-
-      - name: Download Specmatic Enterprise artifact
-        if: ${{ inputs.enterprise_artifact_url != '' && inputs.enterprise_version != '' }}
-        uses: actions/download-artifact@v5
-        with:
-          name: specmatic-enterprise-jar
-          path: ~/.specmatic
-
-      - name: Install Specmatic Enterprise artifact into local Maven
-        if: ${{ inputs.enterprise_artifact_url != '' && inputs.enterprise_version != '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          mvn install:install-file \
-            -Dfile="$HOME/.specmatic/specmatic-enterprise.jar" \
-            -DgroupId=io.specmatic.enterprise \
-            -DartifactId=executable \
-            -Dversion="${ENTERPRISE_VERSION}" \
-            -Dpackaging=jar \
-            -DgeneratePom=true
-
-          echo "Installed Enterprise artifact into local Maven"
-
       - name: Run tests
         shell: bash
+        env:
+          ENTERPRISE_VERSION: ${{ inputs.enterprise_version }}
         run: |
           set -euo pipefail
 
@@ -170,7 +119,6 @@ jobs:
             -Dsend.protocol=${{ matrix.send }} \
             -DspecmaticDockerImage=${SPECMATIC_DOCKER_IMAGE} \
             ${ENTERPRISE_VERSION:+-PspecmaticEnterpriseVersion=${ENTERPRISE_VERSION}} \
-            ${ENTERPRISE_VERSION:+-PenterpriseVersion=${ENTERPRISE_VERSION}} \
             --no-daemon --rerun-tasks
 
       - name: Upload CTRF Report
@@ -187,48 +135,3 @@ jobs:
         if: always()
         with:
           report-path: ${{ env.CTRF_REPORT_PATH }}
-
-  cleanup-enterprise-artifact:
-    needs: [prepare-enterprise-artifact, build]
-    if: ${{ always() && needs.prepare-enterprise-artifact.result == 'success' && needs.prepare-enterprise-artifact.outputs.artifact-id != '' }}
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write
-    steps:
-      - name: Delete Specmatic Enterprise artifact
-        uses: actions/github-script@v8
-        with:
-          script: |
-            const artifactId = Number('${{ needs.prepare-enterprise-artifact.outputs.artifact-id }}');
-
-            if (!artifactId) {
-              core.info('No enterprise artifact id found, skipping delete.');
-              return;
-            }
-
-            for (let attempt = 1; attempt <= 3; attempt++) {
-              try {
-                await github.rest.actions.deleteArtifact({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  artifact_id: artifactId,
-                });
-
-                core.info(`Deleted workflow artifact ${artifactId}.`);
-                return;
-              } catch (error) {
-                if (error.status === 404) {
-                  core.info(`Artifact ${artifactId} already gone.`);
-                  return;
-                }
-
-                const retryable = error.status === 429 || (error.status >= 500 && error.status < 600);
-
-                if (attempt === 3 || !retryable) {
-                  throw error;
-                }
-
-                core.info(`Delete failed on attempt ${attempt}. Retrying...`);
-                await new Promise((resolve) => setTimeout(resolve, attempt * 5000));
-              }
-            }

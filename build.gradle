@@ -7,8 +7,6 @@ plugins {
     id 'org.jetbrains.kotlin.jvm'
 }
 
-def snapshotRepoUrl = project.findProperty('snapshotRepoUrl')
-
 group = 'com.example'
 version = '1.0.0'
 
@@ -21,12 +19,6 @@ configurations {
 repositories {
     mavenCentral()
     mavenLocal()
-
-    if(snapshotRepoUrl){
-        maven{
-            url = uri(snapshotRepoUrl)
-        }
-    }
 }
 
 dependencies {
