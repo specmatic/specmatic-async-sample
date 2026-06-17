@@ -53,11 +53,8 @@ jobs:
         uses: specmatic/specmatic-github-workflows/action-orchestrator-setup@main
         with:
           orchestrator-run-suffix: ${{ inputs.orchestrator_run_suffix }}
-          enterprise-version: ${{ inputs.enterprise_version }}
-          gradle-snapshot-init-script-path: ./gradle/specmatic-snapshots.init.gradle
           docker-hub-username: ${{ vars.SPECMATIC_DOCKER_HUB_USERNAME }}
           docker-hub-token: ${{ secrets.SPECMATIC_DOCKER_HUB_TOKEN }}
-          setup-snapshot-docker-image: 'true'
 
       - name: Add orchestrator matrix context to summary
         if: ${{ inputs.orchestrator_run_suffix != '' }}
