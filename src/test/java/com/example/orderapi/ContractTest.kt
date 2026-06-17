@@ -124,10 +124,6 @@ class ContractTest {
             return environmentImage
         }
 
-        return if (System.getenv("ENTERPRISE_ARTIFACT_URL").isNullOrBlank()) {
-            "specmatic/enterprise:latest"
-        } else {
-            "specmatic/enterprise-snapshot:latest"
-        }
+        return "specmatic/enterprise:latest"
     }
 }
