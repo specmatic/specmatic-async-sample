@@ -2,7 +2,7 @@
 
 This project showcases the flexibility of specmatic-async when working with different combinations of send and receive protocols.
 
-By updating just a few lines in the ContractTest (described below), you can run the same contract tests across multiple protocol pairings such as Kafka, SQS, JMS, MQTT and AMQP (RabbitMQ/ActiveMQ).
+By passing protocol values at test runtime, you can run same contract tests across multiple protocol pairings such as Kafka, SQS, JMS, MQTT and AMQP (RabbitMQ/ActiveMQ).
 
 Give it a try to experience how specmatic-async makes protocol-agnostic asynchronous contract testing simple and scalable.
 
@@ -14,26 +14,36 @@ To understand the architecture of the application in detail, refer to [ARCHITECT
 - Docker
 - Java
 
+Default combo:
+
 ```bash
 ./gradlew test
 ```
 
-**That's it!** The contract test automatically adapts to your protocol configuration.
+This runs with default test protocols:
 
-You can test different protocol combinations by modifying the `recieve.protocol` and `send.protocol` in `ContractTest.kt`.
+```text
+receive.protocol=sqs
+send.protocol=kafka
+```
+
+To run same contract test with different protocol combinations, pass JVM system properties to Gradle.
 
 Supported values: `kafka`, `sqs`, `mqtt`, `jms`, `amqp`
 
-```shell
-@SpringBootTest(
-    webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT,
-    // Note - Update these to try out different protocol combinations
-    properties = [
-        "receive.protocol=jms",
-        "send.protocol=mqtt"
-    ]
-)
+```bash
+./gradlew test -Dreceive.protocol=jms -Dsend.protocol=mqtt
 ```
+
+More examples:
+
+```bash
+./gradlew test -Dreceive.protocol=kafka -Dsend.protocol=amqp
+./gradlew test -Dreceive.protocol=mqtt -Dsend.protocol=sqs
+./gradlew test -Dreceive.protocol=amqp -Dsend.protocol=jms
+```
+
+Testcontainers starts only infra needed for selected `receive.protocol` and `send.protocol`.
 
 ### Test Report
 Once the tests have run, you can view the Specmatic test reports generated at: [build/reports/specmatic/async/test/html/index.html](build/reports/specmatic/async/test/html/index.html)
