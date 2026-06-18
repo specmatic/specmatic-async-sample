@@ -59,9 +59,7 @@ dependencies {
     testImplementation 'org.springframework.kafka:spring-kafka-test'
     testImplementation("org.testcontainers:testcontainers:1.21.4")
     testImplementation("org.testcontainers:junit-jupiter:1.21.4")
-    testImplementation("org.testcontainers:kafka:1.21.4")
     testImplementation("org.testcontainers:localstack:1.21.4")
-    testImplementation("org.testcontainers:rabbitmq:1.21.4")
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
 }
 
@@ -78,4 +76,8 @@ tasks.named('test') {
             TestLogEvent.SKIPPED
         )
     }
+}
+
+tasks.named('bootJar') {
+    archiveFileName = 'app.jar'
 }

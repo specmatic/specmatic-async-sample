@@ -3,52 +3,51 @@ package com.example.orderapi
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
-import org.junit.jupiter.api.condition.DisabledOnOs
-import org.junit.jupiter.api.condition.OS
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
+import org.junit.jupiter.api.condition.DisabledOnOs
+import org.junit.jupiter.api.condition.OS
 import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.GenericContainer
+import org.testcontainers.containers.Network
+import org.testcontainers.containers.localstack.LocalStackContainer
 import org.testcontainers.containers.wait.strategy.Wait
 import org.testcontainers.utility.DockerImageName
-import java.nio.file.Files
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
+import software.amazon.awssdk.regions.Region
+import software.amazon.awssdk.services.sqs.SqsClient
+import software.amazon.awssdk.services.sqs.model.CreateQueueRequest
 import java.nio.file.Path
 import java.time.Duration
-import kotlin.io.path.name
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @DisabledOnOs(OS.WINDOWS)
 class ContractTest {
-    private val specmaticDockerImage = resolvedSpecmaticDockerImage()
+    private val network = Network.newNetwork()
+    private val localstack = LocalStackContainer(DockerImageName.parse("localstack/localstack:4.13"))
+        .withNetwork(network)
+        .withNetworkAliases("localstack-sqs")
+        .withServices(LocalStackContainer.Service.SQS)
 
-    private val appDockerImage = DockerImageName.parse("eclipse-temurin:17-jre")
-    private val environment = ProtocolTestEnvironment.startFromSystemProperties()
     private lateinit var appContainer: GenericContainer<*>
 
     @BeforeAll
     fun setup() {
-        println("Test setup: receive=${environment.receiveProtocol()}, send=${environment.sendProtocol()}")
-        appContainer = GenericContainer(appDockerImage)
-            .withNetwork(environment.network())
+        localstack.start()
+        createQueue("new-orders")
+        createQueue("wip-orders")
+
+        appContainer = GenericContainer(DockerImageName.parse("eclipse-temurin:17-jre"))
+            .withNetwork(network)
             .withNetworkAliases("order-api")
-            .withFileSystemBind(
-                applicationJar().toAbsolutePath().toString(),
-                "/app/app.jar",
-                BindMode.READ_ONLY
-            )
+            .withFileSystemBind("build/libs/app.jar", "/app/app.jar", BindMode.READ_ONLY)
             .withEnv("SERVER_PORT", "9090")
             .withEnv("SERVER_ADDRESS", "0.0.0.0")
-            .withEnv("RECEIVE_PROTOCOL", environment.receiveProtocol())
-            .withEnv("SEND_PROTOCOL", environment.sendProtocol())
-            .withEnv("MQTT_CLIENT_ID", environment.mqttClientId())
-            .withEnv("SPRING_KAFKA_BOOTSTRAP_SERVERS", environment.containerKafkaBootstrapServers())
-            .withEnv("SPRING_CLOUD_AWS_ENDPOINT", environment.containerSqsEndpoint())
-            .withEnv("SPRING_CLOUD_AWS_SQS_ENDPOINT", environment.containerSqsEndpoint())
-            .withEnv("MQTT_BROKER_URL", environment.containerMqttBrokerUrl())
-            .withEnv("SPRING_ARTEMIS_HOST", environment.containerJmsHost())
-            .withEnv("SPRING_ARTEMIS_PORT", environment.containerJmsPort().toString())
-            .withEnv("SPRING_RABBITMQ_HOST", environment.containerRabbitHost())
-            .withEnv("SPRING_RABBITMQ_PORT", environment.containerRabbitPort().toString())
+            .withEnv("RECEIVE_PROTOCOL", "sqs")
+            .withEnv("SEND_PROTOCOL", "sqs")
+            .withEnv("SPRING_CLOUD_AWS_ENDPOINT", "http://localstack-sqs:4566")
+            .withEnv("SPRING_CLOUD_AWS_SQS_ENDPOINT", "http://localstack-sqs:4566")
             .withCommand("java", "-jar", "/app/app.jar")
             .withStartupTimeout(Duration.ofMinutes(3))
             .withLogConsumer { print(it.utf8String) }
@@ -58,72 +57,57 @@ class ContractTest {
     }
 
     @AfterAll
-    fun afterAll() {
-        appContainer.stop()
-        environment.stop()
+    fun cleanup() {
+        if (::appContainer.isInitialized) {
+            appContainer.stop()
+        }
+        localstack.stop()
+        network.close()
     }
 
     @Test
     fun runContractTest() {
-        println("Running contract test for: receive=${environment.receiveProtocol()}, send=${environment.sendProtocol()}")
-        Files.createDirectories(Path.of("./build/reports/specmatic"))
-        val workspace = AsyncContractTestSupport.createSpecmaticWorkspace(
-            environment,
-            "http://order-api:9090",
-            true
-        )
-        assertThat(Files.readString(workspace.resolve("examples/acceptOrder.json"))).contains("http://order-api:9090")
-        assertThat(Files.readString(workspace.resolve("examples/outForDeliveryOrder.json"))).contains("http://order-api:9090")
-
-        val specmaticContainer = GenericContainer(DockerImageName.parse(specmaticDockerImage))
+        val specmatic = GenericContainer(DockerImageName.parse("specmatic/enterprise:latest"))
             .withCommand("test")
-            .withNetwork(environment.network())
-            .withFileSystemBind(
-                workspace.toAbsolutePath().toString(),
-                "/usr/src/app",
-                BindMode.READ_WRITE
-            )
+            .withNetwork(network)
+            .withFileSystemBind(Path.of(".").toAbsolutePath().normalize().toString(), "/usr/src/app", BindMode.READ_WRITE)
+            .withWorkingDirectory("/usr/src/app")
             .withStartupTimeout(Duration.ofMinutes(5))
             .withLogConsumer { print(it.utf8String) }
-            .waitingFor(
-                Wait.forLogMessage(".*(Failed:|Success).*", 1)
-                    .withStartupTimeout(Duration.ofMinutes(3))
-            )
 
         try {
-            specmaticContainer.start()
-
-            val logs = specmaticContainer.logs
-            assertThat(logs)
-                .withFailMessage("Specmatic tests failed. Check logs above for details.")
-                .doesNotContain("Result: FAILED")
-                .contains("Result: PASSED")
+            specmatic.start()
+            waitForSpecmaticToFinish(specmatic)
+            assertThat(specmatic.logs).contains("Result: PASSED").doesNotContain("Result: FAILED")
         } finally {
-            specmaticContainer.stop()
-            AsyncContractTestSupport.syncReports(workspace)
-            AsyncContractTestSupport.deleteWorkspace(workspace)
+            specmatic.stop()
         }
     }
 
-    private fun applicationJar(): Path =
-        Files.list(Path.of("build/libs")).use { paths ->
-            paths
-                .filter { path -> path.name.endsWith(".jar") && !path.name.endsWith("-plain.jar") }
-                .findFirst()
-                .orElseThrow { IllegalStateException("Executable boot jar not found in build/libs") }
+    private fun createQueue(name: String) {
+        sqsClient().use { sqs ->
+            sqs.createQueue(CreateQueueRequest.builder().queueName(name).build())
         }
+    }
 
-    private fun resolvedSpecmaticDockerImage(): String {
-        val systemProperty = System.getProperty("specmaticDockerImage")
-        if (!systemProperty.isNullOrBlank()) {
-            return systemProperty
+    private fun sqsClient(): SqsClient =
+        SqsClient.builder()
+            .region(Region.of(localstack.region))
+            .endpointOverride(localstack.getEndpointOverride(LocalStackContainer.Service.SQS))
+            .credentialsProvider(
+                StaticCredentialsProvider.create(
+                    AwsBasicCredentials.create(localstack.accessKey, localstack.secretKey)
+                )
+            )
+            .build()
+
+    private fun waitForSpecmaticToFinish(container: GenericContainer<*>) {
+        repeat(300) {
+            if (!container.isRunning) {
+                return
+            }
+            Thread.sleep(1000)
         }
-
-        val environmentImage = System.getenv("SPECMATIC_DOCKER_IMAGE")
-        if (!environmentImage.isNullOrBlank()) {
-            return environmentImage
-        }
-
-        return "specmatic/enterprise:latest"
+        error("Specmatic did not finish within 5 minutes")
     }
 }

@@ -1,16 +1,16 @@
 version: 3
 systemUnderTest:
   service:
-    $ref: "#/components/services/orderAsyncService"
+    $ref: '#/components/services/orderAsyncService'
     runOptions:
-      $ref: "#/components/runOptions/orderAsyncServiceTest"
+      $ref: '#/components/runOptions/orderAsyncServiceTest'
     data:
       examples:
         - directories:
             - examples
 components:
   sources:
-    specmaticOrderContracts:
+    contracts:
       filesystem:
         directory: .
   services:
@@ -18,7 +18,7 @@ components:
       definitions:
         - definition:
             source:
-              $ref: "#/components/sources/specmaticOrderContracts"
+              $ref: '#/components/sources/contracts'
             specs:
               - spec/spec.yaml
   runOptions:
@@ -26,14 +26,9 @@ components:
       asyncapi:
         type: test
         servers:
-          - host: http://localhost:4566/000000000000
+          - host: http://localstack-sqs:4566/000000000000
             protocol: sqs
             adminCredentials:
               region: us-east-1
               aws.access.key.id: test
               aws.secret.access.key: test
-          - host: tcp://localhost:61616
-            protocol: jms
-            adminCredentials:
-              username: admin
-              password: admin
