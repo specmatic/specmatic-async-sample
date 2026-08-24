@@ -69,6 +69,8 @@ tasks.named('test') {
     dependsOn tasks.named('bootJar')
     useJUnitPlatform()
 
+    systemProperties System.properties
+
     testLogging {
         showStandardStreams = true
         events(
