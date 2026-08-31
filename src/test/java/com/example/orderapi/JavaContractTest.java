@@ -61,8 +61,7 @@ public class JavaContractTest {
             registry.add("mqtt.broker-url", ENVIRONMENT::mqttBrokerUrl);
         }
         if ("jms".equals(ENVIRONMENT.receiveProtocol()) || "jms".equals(ENVIRONMENT.sendProtocol())) {
-            registry.add("spring.artemis.host", ENVIRONMENT::jmsHost);
-            registry.add("spring.artemis.port", ENVIRONMENT::jmsPort);
+            registry.add("spring.artemis.broker-url", ENVIRONMENT::jmsBrokerUrl);
         }
         if ("amqp".equals(ENVIRONMENT.receiveProtocol()) || "amqp".equals(ENVIRONMENT.sendProtocol())) {
             registry.add("spring.rabbitmq.host", ENVIRONMENT::rabbitHost);
