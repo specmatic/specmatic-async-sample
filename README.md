@@ -44,6 +44,7 @@ More examples:
 ```
 
 Testcontainers starts only infra needed for selected `receive.protocol` and `send.protocol`.
+The Order API exposes Actuator liveness at `/actuator/health/liveness`; the container test waits for that endpoint, the listening port, and the application startup log before running Specmatic.
 
 ### Test Report
 Once the tests have run, you can view the Specmatic test reports generated at: [build/reports/specmatic/async/test/html/index.html](build/reports/specmatic/async/test/html/index.html)
