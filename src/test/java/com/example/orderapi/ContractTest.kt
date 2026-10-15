@@ -10,6 +10,7 @@ import org.junit.jupiter.api.TestInstance
 import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.GenericContainer
 import org.testcontainers.containers.wait.strategy.Wait
+import org.testcontainers.containers.wait.strategy.WaitAllStrategy
 import org.testcontainers.utility.DockerImageName
 import java.nio.file.Files
 import java.nio.file.Path
@@ -31,6 +32,7 @@ class ContractTest {
         appContainer = GenericContainer(appDockerImage)
             .withNetwork(environment.network())
             .withNetworkAliases("order-api")
+            .withExposedPorts(9090)
             .withFileSystemBind(
                 applicationJar().toAbsolutePath().toString(),
                 "/app/app.jar",
@@ -38,6 +40,7 @@ class ContractTest {
             )
             .withEnv("SERVER_PORT", "9090")
             .withEnv("SERVER_ADDRESS", "0.0.0.0")
+            .withEnv("MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED", "true")
             .withEnv("RECEIVE_PROTOCOL", environment.receiveProtocol())
             .withEnv("SEND_PROTOCOL", environment.sendProtocol())
             .withEnv("MQTT_CLIENT_ID", environment.mqttClientId())
@@ -49,9 +52,14 @@ class ContractTest {
             .withEnv("SPRING_RABBITMQ_HOST", environment.containerRabbitHost())
             .withEnv("SPRING_RABBITMQ_PORT", environment.containerRabbitPort().toString())
             .withCommand("java", "-jar", "/app/app.jar")
-            .withStartupTimeout(Duration.ofMinutes(3))
             .withLogConsumer { print(it.utf8String) }
-            .waitingFor(Wait.forListeningPort())
+            .waitingFor(
+                WaitAllStrategy()
+                    .withStrategy(Wait.forListeningPort())
+                    .withStrategy(Wait.forLogMessage(".*Started OrderApiApplication.*", 1))
+                    .withStrategy(Wait.forHttp("/actuator/health/liveness").forStatusCode(200))
+            )
+            .withStartupTimeout(Duration.ofMinutes(3))
 
         appContainer.start()
     }
@@ -76,6 +84,7 @@ class ContractTest {
 
         val specmaticContainer = GenericContainer(DockerImageName.parse(specmaticDockerImage))
             .withCommand("test")
+            .withFileSystemBind("${System.getProperty("user.home")}/.specmatic", "/root/.specmatic", BindMode.READ_ONLY)
             .withNetwork(environment.network())
             .withFileSystemBind(
                 workspace.toAbsolutePath().toString(),
